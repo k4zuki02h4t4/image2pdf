@@ -1,6 +1,7 @@
 """
 4点切り抜きウィジェット
 マウスで4つの点を指定して画像の切り抜き範囲を設定するウィジェット
+修正版：qfluentwidgets用のobjectName設定を追加
 """
 
 import logging
@@ -40,6 +41,9 @@ class InteractiveImageWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
+        
+        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        self.setObjectName("interactive-image-widget")
         
         # 画像データ
         self.original_pixmap: Optional[QPixmap] = None
@@ -484,6 +488,9 @@ class CropWidget(CardWidget):
         self.logger = logging.getLogger(__name__)
         self.current_image_path: Optional[Path] = None
         self.current_image: Optional[np.ndarray] = None
+        
+        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        self.setObjectName("crop-widget")
         
         self._setup_ui()
         self._connect_signals()

@@ -1,6 +1,7 @@
 """
 メインウィンドウ
 Image2PDF アプリケーションのメインGUIウィンドウ
+修正版：addSubInterface用のobjectName設定を追加
 """
 
 import logging
@@ -296,6 +297,10 @@ class MainWindow(FluentWindow):
     def _create_main_page(self):
         """メインページ作成"""
         main_page = QWidget()
+        
+        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        main_page.setObjectName("main-page")
+        
         layout = QHBoxLayout(main_page)
         
         # 左側パネル（画像リスト）
@@ -433,11 +438,19 @@ class MainWindow(FluentWindow):
     def _create_crop_page(self):
         """切り抜きページ作成"""
         self.crop_widget = CropWidget()
+        
+        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        self.crop_widget.setObjectName("crop-widget")
+        
         self.addSubInterface(self.crop_widget, FluentIcon.CUT, "画像切り抜き", NavigationItemPosition.TOP)
     
     def _create_settings_page(self):
         """設定ページ作成"""
         settings_page = QWidget()
+        
+        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        settings_page.setObjectName("settings-page")
+        
         layout = QVBoxLayout(settings_page)
         
         # 設定項目を追加（今後の拡張用）
