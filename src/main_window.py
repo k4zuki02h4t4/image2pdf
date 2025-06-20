@@ -362,16 +362,14 @@ class MainWindow(FluentWindow):
         # プレビューエリア
         preview_card = HeaderCardWidget()
         preview_card.setTitle("画像プレビュー")
-        preview_layout = QVBoxLayout()
         
         self.preview_label = BodyLabel("画像を選択してください")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumHeight(300)
         self.preview_label.setStyleSheet("border: 2px dashed #ccc; border-radius: 8px;")
         
-        preview_layout.addWidget(self.preview_label)
-        preview_card.addWidget(QWidget())  # プレースホルダー
-        preview_card.layout().addLayout(preview_layout)
+        # HeaderCardWidgetのviewLayoutに直接追加
+        preview_card.viewLayout.addWidget(self.preview_label)
         
         layout.addWidget(preview_card)
         
@@ -392,8 +390,6 @@ class MainWindow(FluentWindow):
         card = HeaderCardWidget()
         card.setTitle("PDF設定")
         
-        layout = QVBoxLayout()
-        
         # ページサイズ
         page_size_layout = QHBoxLayout()
         page_size_layout.addWidget(BodyLabel("ページサイズ:"))
@@ -404,7 +400,6 @@ class MainWindow(FluentWindow):
         
         page_size_layout.addWidget(self.page_size_combo)
         page_size_layout.addStretch()
-        layout.addLayout(page_size_layout)
         
         # オプション
         self.fit_to_page_cb = CheckBox("ページに合わせる")
@@ -412,9 +407,6 @@ class MainWindow(FluentWindow):
         
         self.maintain_aspect_cb = CheckBox("アスペクト比を維持")
         self.maintain_aspect_cb.setChecked(True)
-        
-        layout.addWidget(self.fit_to_page_cb)
-        layout.addWidget(self.maintain_aspect_cb)
         
         # ファイル名設定
         filename_layout = QHBoxLayout()
@@ -429,12 +421,12 @@ class MainWindow(FluentWindow):
         
         filename_layout.addWidget(self.filename_edit)
         filename_layout.addWidget(self.browse_btn)
-        layout.addLayout(filename_layout)
         
-        # カードにレイアウトを追加
-        content_widget = QWidget()
-        content_widget.setLayout(layout)
-        card.addWidget(content_widget)
+        # HeaderCardWidgetのviewLayoutに直接追加
+        card.viewLayout.addLayout(page_size_layout)
+        card.viewLayout.addWidget(self.fit_to_page_cb)
+        card.viewLayout.addWidget(self.maintain_aspect_cb)
+        card.viewLayout.addLayout(filename_layout)
         
         return card
     
