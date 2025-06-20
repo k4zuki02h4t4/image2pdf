@@ -2,7 +2,7 @@
 # Python 3.9+ 推奨
 
 # GUI フレームワーク
-PyQt6>=6.9.1
+PyQt6>=1.8.0
 PyQt6-Fluent-Widgets[full]>=1.8.0
 
 # 画像処理
