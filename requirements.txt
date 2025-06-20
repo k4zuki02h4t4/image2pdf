@@ -1,0 +1,24 @@
+# Image2PDF アプリケーション依存関係
+# Python 3.9+ 推奨
+
+# GUI フレームワーク
+PyQt6>=6.9.1
+PyQt6-Fluent-Widgets[full]>=1.8.0
+
+# 画像処理
+opencv-python>=4.9.0
+Pillow>=10.2.0
+numpy>=1.24.0
+
+# PDF生成
+img2pdf>=0.5.1
+reportlab>=4.4.2
+
+# 開発・テスト用
+pytest>=8.0.0
+pytest-qt>=4.3.1
+black>=24.0.0
+flake8>=7.0.0
+
+# Windows 11 特有の依存関係
+pywin32>=306; sys_platform == "win32"
