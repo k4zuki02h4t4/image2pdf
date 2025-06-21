@@ -264,7 +264,6 @@ class MainWindow(QMainWindow):
         # UI コンポーネント
         self.image_list_widget: Optional[ImageListWidget] = None
         self.crop_widget: Optional[InteractiveImageWidget] = None
-        self.progress_bar: Optional[QProgressBar] = None
         
         # PDF生成スレッド
         self.pdf_thread: Optional[PDFGenerationThread] = None
@@ -840,11 +839,6 @@ class MainWindow(QMainWindow):
     def _start_pdf_generation(self, output_path: str, settings: Dict[str, Any]):
         """PDF生成開始"""
         try:
-            # プログレス表示
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 100)
-            self.progress_bar.setValue(0)
-            
             self.state_tooltip = StateToolTip("PDF生成中", "しばらくお待ちください...", self)
             self.state_tooltip.show()
             
@@ -870,9 +864,6 @@ class MainWindow(QMainWindow):
             raise
     
     def _on_pdf_progress(self, progress: int, message: str):
-        """PDF生成進捗更新"""
-        self.progress_bar.setValue(progress)
-        
         if hasattr(self, 'state_tooltip'):
             self.state_tooltip.setContent(f"{message} ({progress}%)")
     
@@ -913,8 +904,6 @@ class MainWindow(QMainWindow):
     
     def _cleanup_pdf_generation(self):
         """PDF生成関連のクリーンアップ"""
-        self.progress_bar.setVisible(False)
-        
         if hasattr(self, 'state_tooltip'):
             self.state_tooltip.setState(True)
             delattr(self, 'state_tooltip')
