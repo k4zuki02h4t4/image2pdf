@@ -272,7 +272,6 @@ class MainWindow(QMainWindow):
         
         # 初期化
         self._setup_ui()
-        self._setup_statusbar()
         self._connect_signals()
         self._load_settings()
         
@@ -551,21 +550,6 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         
         return tab
-    
-    def _setup_statusbar(self):
-        """ステータスバー設定（リサイズハンドル完全無効化）"""
-        statusbar = self.statusBar()
-        
-        # 重要：QSizeGripを無効化してリサイズハンドルを削除
-        statusbar.setSizeGripEnabled(False)
-        
-        self.status_label = BodyLabel("準備完了")
-        statusbar.addWidget(self.status_label)
-        
-        # プログレスバー（非表示）
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        statusbar.addPermanentWidget(self.progress_bar)
     
     def _connect_signals(self):
         """シグナル接続"""
