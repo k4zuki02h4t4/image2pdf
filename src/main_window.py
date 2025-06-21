@@ -8,7 +8,7 @@ Image2PDF アプリケーションのメインGUIウィンドウ
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import json
 
 from PyQt6.QtWidgets import (
@@ -38,8 +38,9 @@ from qfluentwidgets import (
 
 from .utils import (
     is_image_file, get_image_filter_string, 
-    validate_pdf_filename, format_file_size, get_temp_dir,
-    validate_and_prepare_output_path, check_file_overwrite
+    validate_and_prepare_output_path, check_file_overwrite,
+    get_pdf_page_size_list, get_pdf_margin_preset_list,
+    PDF_PAGE_SIZES, PDF_MARGIN_PRESETS, PDF_GENERATION_MODES, PDF_DEFAULTS
 )
 from .image_processor import ImageProcessor
 from .pdf_generator import PDFGenerator  
@@ -220,23 +221,25 @@ class PDFGenerationThread(QThread):
             
             # 設定に応じて生成方法を選択
             if self.settings.get('advanced_mode', False):
+                # 高度PDF生成
                 success = generator.generate_pdf_advanced(
                     self.image_paths,
                     self.output_path,
-                    page_size=self.settings.get('page_size', (595, 842)),  # A4
-                    margins=self.settings.get('margins', (28, 28, 28, 28)),  # 1cm
+                    page_size=self.settings.get('page_size', PDF_PAGE_SIZES[PDF_DEFAULTS['page_size']]),
+                    margins=self.settings.get('margins', PDF_MARGIN_PRESETS[PDF_DEFAULTS['margin_preset']]),
                     title=self.settings.get('title', ''),
                     author=self.settings.get('author', ''),
                     subject=self.settings.get('subject', ''),
-                    fit_to_page=self.settings.get('fit_to_page', True),
-                    maintain_aspect_ratio=self.settings.get('maintain_aspect_ratio', True)
+                    fit_to_page=self.settings.get('fit_to_page', PDF_DEFAULTS['fit_to_page']),
+                    maintain_aspect_ratio=self.settings.get('maintain_aspect_ratio', PDF_DEFAULTS['maintain_aspect_ratio'])
                 )
             else:
+                # シンプルPDF生成
                 success = generator.generate_pdf_simple(
                     self.image_paths,
                     self.output_path,
-                    page_size=self.settings.get('page_size_name', 'A4'),
-                    fit_to_page=self.settings.get('fit_to_page', True)
+                    page_size=self.settings.get('page_size_name', PDF_DEFAULTS['page_size']),
+                    fit_to_page=self.settings.get('fit_to_page', PDF_DEFAULTS['fit_to_page'])
                 )
             
             if success:
@@ -510,6 +513,43 @@ class MainWindow(QMainWindow):
         
         settings_card.viewLayout.addLayout(page_size_layout)
         
+        # マージン設定
+        margin_layout = QHBoxLayout()
+        margin_layout.addWidget(BodyLabel("マージン:"))
+        
+        self.margin_preset_combo = ComboBox()
+        self.margin_preset_combo.addItems(get_pdf_margin_preset_list())
+        self.margin_preset_combo.setCurrentText("標準")
+        margin_layout.addWidget(self.margin_preset_combo)
+        
+        # カスタムマージン入力
+        self.margin_top_spinbox = SpinBox()
+        self.margin_top_spinbox.setRange(0, 200)
+        self.margin_top_spinbox.setValue(28)
+        self.margin_top_spinbox.setSuffix(" pt")
+        self.margin_top_spinbox.setEnabled(False)
+        
+        self.margin_right_spinbox = SpinBox()
+        self.margin_right_spinbox.setRange(0, 200)
+        self.margin_right_spinbox.setValue(28)
+        self.margin_right_spinbox.setSuffix(" pt")
+        self.margin_right_spinbox.setEnabled(False)
+        
+        self.margin_bottom_spinbox = SpinBox()
+        self.margin_bottom_spinbox.setRange(0, 200) 
+        self.margin_bottom_spinbox.setValue(28)
+        self.margin_bottom_spinbox.setSuffix(" pt")
+        self.margin_bottom_spinbox.setEnabled(False)
+        
+        self.margin_left_spinbox = SpinBox()
+        self.margin_left_spinbox.setRange(0, 200)
+        self.margin_left_spinbox.setValue(28)
+        self.margin_left_spinbox.setSuffix(" pt")
+        self.margin_left_spinbox.setEnabled(False)
+        
+        margin_layout.addStretch()
+        settings_card.viewLayout.addLayout(margin_layout)
+        
         # オプション設定
         self.fit_to_page_cb = CheckBox("ページに合わせる")
         self.fit_to_page_cb.setChecked(True)
@@ -521,6 +561,36 @@ class MainWindow(QMainWindow):
         settings_card.viewLayout.addWidget(self.maintain_aspect_cb)
         
         layout.addWidget(settings_card)
+         
+        # PDFメタデータ設定カード
+        metadata_card = HeaderCardWidget()
+        metadata_card.setTitle("PDFメタデータ")
+        
+        # タイトル設定
+        title_layout = QHBoxLayout()
+        title_layout.addWidget(BodyLabel("タイトル:"))
+        self.pdf_title_edit = LineEdit()
+        self.pdf_title_edit.setPlaceholderText("PDFのタイトルを入力")
+        title_layout.addWidget(self.pdf_title_edit)
+        metadata_card.viewLayout.addLayout(title_layout)
+        
+        # 作成者設定
+        author_layout = QHBoxLayout()
+        author_layout.addWidget(BodyLabel("作成者:"))
+        self.pdf_author_edit = LineEdit()
+        self.pdf_author_edit.setPlaceholderText("作成者名を入力")
+        author_layout.addWidget(self.pdf_author_edit)
+        metadata_card.viewLayout.addLayout(author_layout)
+        
+        # 件名設定
+        subject_layout = QHBoxLayout()
+        subject_layout.addWidget(BodyLabel("件名:"))
+        self.pdf_subject_edit = LineEdit()
+        self.pdf_subject_edit.setPlaceholderText("件名を入力")
+        subject_layout.addWidget(self.pdf_subject_edit)
+        metadata_card.viewLayout.addLayout(subject_layout)
+        
+        layout.addWidget(metadata_card)
         
         # ファイル名設定カード
         filename_card = HeaderCardWidget()
@@ -562,6 +632,9 @@ class MainWindow(QMainWindow):
         self.browse_btn.clicked.connect(self._browse_output_location)
         
         # 切り抜き関連
+        # マージン設定の連動
+        self.margin_preset_combo.currentTextChanged.connect(self._on_margin_preset_changed)
+        
         if self.crop_widget:
             self.crop_widget.points_changed.connect(self._on_crop_points_changed)
         
@@ -596,6 +669,10 @@ class MainWindow(QMainWindow):
             maintain_aspect = self.settings.value('pdf/maintain_aspect', True, type=bool)
             self.maintain_aspect_cb.setChecked(maintain_aspect)
             
+            # マージン設定
+            margin_preset = self.settings.value('pdf/margin_preset', '標準')
+            self.margin_preset_combo.setCurrentText(margin_preset)
+            
             # 最後の出力ディレクトリ
             last_output_dir = self.settings.value('output/last_directory', '')
             if last_output_dir:
@@ -618,6 +695,7 @@ class MainWindow(QMainWindow):
             self.settings.setValue('pdf/page_size', self.page_size_combo.currentText())
             self.settings.setValue('pdf/fit_to_page', self.fit_to_page_cb.isChecked())
             self.settings.setValue('pdf/maintain_aspect', self.maintain_aspect_cb.isChecked())
+            self.settings.setValue('pdf/margin_preset', self.margin_preset_combo.currentText())
             
             # 最後の出力ディレクトリ
             if hasattr(self, 'last_output_directory'):
@@ -728,6 +806,35 @@ class MainWindow(QMainWindow):
         # デフォルトファイル名設定
         if has_images and not self.filename_edit.text():
             self.filename_edit.setText("output.pdf")
+    
+    def _on_margin_preset_changed(self, preset_name: str):
+        """マージンプリセット変更時の処理"""
+        is_custom = preset_name == 'カスタム'
+        
+        # カスタムマージン入力の有効/無効切り替え
+        self.margin_top_spinbox.setEnabled(is_custom)
+        self.margin_right_spinbox.setEnabled(is_custom)
+        self.margin_bottom_spinbox.setEnabled(is_custom)
+        self.margin_left_spinbox.setEnabled(is_custom)
+        
+        # プリセット値を設定
+        if not is_custom and preset_name in PDF_MARGIN_PRESETS:
+            margins = PDF_MARGIN_PRESETS[preset_name]
+            if margins:
+                top, right, bottom, left = margins
+                self.margin_top_spinbox.setValue(top)
+                self.margin_right_spinbox.setValue(right)
+                self.margin_bottom_spinbox.setValue(bottom)
+                self.margin_left_spinbox.setValue(left)
+    
+    def _get_current_margins(self) -> Tuple[float, float, float, float]:
+        """現在のマージン設定を取得"""
+        return (
+            self.margin_top_spinbox.value(),
+            self.margin_right_spinbox.value(),
+            self.margin_bottom_spinbox.value(),
+            self.margin_left_spinbox.value()
+        )
     
     # イベントハンドラー
     def _add_files_dialog(self):
@@ -865,12 +972,24 @@ class MainWindow(QMainWindow):
             # 最終的な出力パスを設定
             final_output_path = str(validated_path)
             
-            # PDF生成設定を収集
+            # 現在のマージン設定を取得
+            margins = self._get_current_margins()
+            
+            # ページサイズを取得
+            page_size_name = self.page_size_combo.currentText()
+            page_size = PDF_PAGE_SIZES.get(page_size_name, PDF_PAGE_SIZES[PDF_DEFAULTS['page_size']])
+            
             pdf_settings = {
                 'page_size_name': self.page_size_combo.currentText(),
+                'page_size': page_size,
+                'margins': margins,
                 'fit_to_page': self.fit_to_page_cb.isChecked(),
                 'maintain_aspect_ratio': self.maintain_aspect_cb.isChecked(),
-                'advanced_mode': False  # シンプルモード
+                'advanced_mode': 'advanced',
+                'title': self.pdf_title_edit.text().strip(),
+                'author': self.pdf_author_edit.text().strip(),
+                'subject': self.pdf_subject_edit.text().strip(),
+                'creator': PDF_DEFAULTS['creator']
             }
             
             # PDF生成スレッドを開始

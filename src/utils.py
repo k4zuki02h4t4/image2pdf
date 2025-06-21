@@ -9,9 +9,72 @@ import os
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 import mimetypes
+from reportlab.lib.pagesizes import letter, A4, legal
 
 from PyQt6.QtCore import QStandardPaths
 from PyQt6.QtGui import QPixmap
+
+
+# PDF関連の共通定数
+PDF_PAGE_SIZES = {
+    'A4': A4,
+    'Letter': letter, 
+    'Legal': legal,
+    'A3': (842, 1191),
+    'A5': (420, 595),
+    'A6': (297, 420),
+    'B4': (709, 1001),
+    'B5': (499, 709),
+    'Custom': None
+}
+
+# ページサイズ名のリスト（UIでの表示順）
+PDF_PAGE_SIZE_NAMES = [
+    'A4', 'Letter', 'Legal', 'A3', 'A5', 'A6', 'B4', 'B5'
+]
+
+# マージンプリセット（ポイント単位）
+PDF_MARGIN_PRESETS = {
+    '狭い': (14, 14, 14, 14),      # 0.5cm
+    '標準': (28, 28, 28, 28),      # 1cm  
+    '広い': (56, 56, 56, 56),      # 2cm
+    'カスタム': None
+}
+
+# マージンプリセット名のリスト
+PDF_MARGIN_PRESET_NAMES = ['狭い', '標準', '広い', 'カスタム']
+
+# PDF生成モード
+PDF_GENERATION_MODES = {
+    'シンプル': 'simple',
+    '高度': 'advanced'
+}
+
+# PDF生成モード名のリスト
+PDF_GENERATION_MODE_NAMES = ['シンプル', '高度']
+
+# デフォルト値
+PDF_DEFAULTS = {
+    'page_size': 'A4',
+    'margin_preset': '標準',
+    'generation_mode': 'シンプル',
+    'fit_to_page': True,
+    'maintain_aspect_ratio': True,
+    'title': '',
+    'author': '',
+    'subject': '',
+    'creator': 'Image2PDF v1.0'
+}
+
+
+def get_pdf_page_size_list() -> List[str]:
+    """PDF用ページサイズ名のリストを取得"""
+    return PDF_PAGE_SIZE_NAMES.copy()
+
+
+def get_pdf_margin_preset_list() -> List[str]:
+    """PDFマージンプリセット名のリストを取得"""
+    return PDF_MARGIN_PRESET_NAMES.copy()
 
 
 def validate_and_prepare_output_path(output_path: Union[str, Path]) -> Tuple[bool, Path, str]:

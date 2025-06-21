@@ -21,8 +21,10 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from .utils import get_temp_dir, sanitize_filename, format_file_size, validate_and_prepare_output_path
-
+from .utils import (
+    get_temp_dir, sanitize_filename, format_file_size, validate_and_prepare_output_path,
+    PDF_PAGE_SIZES, PDF_DEFAULTS
+)
 
 class PDFGenerator(QObject):
     """PDF生成を行うクラス"""
@@ -33,16 +35,6 @@ class PDFGenerator(QObject):
     generation_finished = pyqtSignal(str)  # 生成完了 (出力ファイルパス)
     generation_error = pyqtSignal(str)  # エラー
     progress_updated = pyqtSignal(int, str)  # 進捗更新 (パーセント, メッセージ)
-    
-    # ページサイズ定義
-    PAGE_SIZES = {
-        'A4': A4,
-        'Letter': letter,
-        'Legal': legal,
-        'A3': (842, 1191),
-        'A5': (420, 595),
-        'Custom': None
-    }
     
     def __init__(self):
         super().__init__()
@@ -330,13 +322,13 @@ class PDFGenerator(QObject):
             img2pdfのレイアウト関数
         """
         try:
-            if page_size not in self.PAGE_SIZES:
-                page_size = 'A4'
+            if page_size not in PDF_PAGE_SIZES:
+                page_size = PDF_DEFAULTS['page_size']
             
-            if page_size == 'Custom':
+            if page_size == 'Custom' or PDF_PAGE_SIZES[page_size] is None:
                 return None
             
-            size = self.PAGE_SIZES[page_size]
+            size = PDF_PAGE_SIZES[page_size]
             if fit_to_page:
                 return img2pdf.get_layout_fun(
                     img2pdf.get_fixed_dpi_layout_fun(300),
@@ -522,4 +514,5 @@ class PDFGenerator(QObject):
         Returns:
             ページサイズ名のリスト
         """
-        return list(PDFGenerator.PAGE_SIZES.keys())
+        from .utils import get_pdf_page_size_list
+        return get_pdf_page_size_list()
