@@ -1,7 +1,7 @@
 """
 4点切り抜きウィジェット
 マウスで4つの点を指定して画像の切り抜き範囲を設定するウィジェット
-修正版：QMessageBox.StandardButtonエラーを修正
+修正版：MessageBox.StandardButtonエラーを修正し、qfluentwidgets.MessageBoxに統一
 """
 
 import logging
@@ -13,7 +13,7 @@ import numpy as np
 import cv2
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
-    QLabel, QSlider, QSpinBox, QGroupBox, QMessageBox
+    QLabel, QSlider, QSpinBox, QGroupBox
 )
 from PyQt6.QtCore import Qt, QPoint, QRect, pyqtSignal, QTimer
 from PyQt6.QtGui import (
@@ -868,7 +868,67 @@ class CropWidget(CardWidget):
             if rotation_angle != 0:
                 working_image = processor.rotate_image(working_image, rotation_angle)
             
-            # 4点切り抜きを実行
+            cropped_image = processor.crop_image_with_four_points(working_image, crop_points)
+            
+            if cropped_image is not None:
+                self.crop_completed.emit(cropped_image)
+                self.logger.info("切り抜き完了")
+                
+                # 成功メッセージ
+                MessageBox("完了", "切り抜きが正常に完了しました。\n画像リストに追加されました。", self).exec()
+            else:
+                MessageBox("エラー", "切り抜き処理に失敗しました", self).exec()
+            
+        except Exception as e:
+            self.logger.error(f"切り抜き実行エラー: {e}")
+            MessageBox("エラー", f"切り抜き処理でエラーが発生しました:\n{e}", self).exec()
+    
+    def _update_ui_state(self):
+        """UI状態を更新"""
+        has_image = self.current_image_path is not None
+        
+        # 回転コントロール
+        self.rotation_slider.setEnabled(has_image)
+        self.rotation_spinbox.setEnabled(has_image)
+        self.rotate_left_btn.setEnabled(has_image)
+        self.rotate_right_btn.setEnabled(has_image)
+        
+        # ズームコントロール
+        self.zoom_in_btn.setEnabled(has_image)
+        self.zoom_out_btn.setEnabled(has_image)
+        self.zoom_fit_btn.setEnabled(has_image)
+        
+        # 操作ボタン
+        self.reset_points_btn.setEnabled(has_image)
+        self.auto_detect_btn.setEnabled(has_image)
+        self.enhance_btn.setEnabled(has_image)
+        
+        # 切り抜き関連ボタンは制御点の数に依存
+        # (_on_points_changed で制御)
+    
+    def get_current_image_info(self) -> Optional[dict]:
+        """
+        現在の画像情報を取得
+        
+        Returns:
+            画像情報の辞書、画像が未設定の場合はNone
+        """
+        if not self.current_image_path or self.current_image is None:
+            return None
+        
+        height, width = self.current_image.shape[:2]
+        channels = self.current_image.shape[2] if len(self.current_image.shape) == 3 else 1
+        
+        return {
+            'filename': self.current_image_path.name,
+            'filepath': str(self.current_image_path),
+            'width': width,
+            'height': height,
+            'channels': channels,
+            'rotation_angle': self.rotation_slider.value(),
+            'crop_points': self.image_widget.get_crop_points_in_image_coordinates(),
+            'zoom_factor': getattr(self.image_widget, 'zoom_factor', 1.0)
+        }
             cropped_image = processor.crop_image_with_four_points(working_image, crop_points)
             
             if cropped_image is not None:
@@ -952,65 +1012,3 @@ class CropWidget(CardWidget):
                 self.image_rotated.emit(rotation_angle)
             
             # 4点切り抜きを実行
-            cropped_image = processor.crop_image_with_four_points(working_image, crop_points)
-            
-            if cropped_image is not None:
-                self.crop_completed.emit(cropped_image)
-                self.logger.info("切り抜き完了")
-                
-                # 成功メッセージ
-                MessageBox("完了", "切り抜きが正常に完了しました。\n画像リストに追加されました。", self).exec()
-            else:
-                MessageBox("エラー", "切り抜き処理に失敗しました", self).exec()
-            
-        except Exception as e:
-            self.logger.error(f"切り抜き実行エラー: {e}")
-            MessageBox("エラー", f"切り抜き処理でエラーが発生しました:\n{e}", self).exec()
-    
-    def _update_ui_state(self):
-        """UI状態を更新"""
-        has_image = self.current_image_path is not None
-        
-        # 回転コントロール
-        self.rotation_slider.setEnabled(has_image)
-        self.rotation_spinbox.setEnabled(has_image)
-        self.rotate_left_btn.setEnabled(has_image)
-        self.rotate_right_btn.setEnabled(has_image)
-        
-        # ズームコントロール
-        self.zoom_in_btn.setEnabled(has_image)
-        self.zoom_out_btn.setEnabled(has_image)
-        self.zoom_fit_btn.setEnabled(has_image)
-        
-        # 操作ボタン
-        self.reset_points_btn.setEnabled(has_image)
-        self.auto_detect_btn.setEnabled(has_image)
-        self.enhance_btn.setEnabled(has_image)
-        
-        # 切り抜き関連ボタンは制御点の数に依存
-        # (_on_points_changed で制御)
-    
-    def get_current_image_info(self) -> Optional[dict]:
-        """
-        現在の画像情報を取得
-        
-        Returns:
-            画像情報の辞書、画像が未設定の場合はNone
-        """
-        if not self.current_image_path or self.current_image is None:
-            return None
-        
-        height, width = self.current_image.shape[:2]
-        channels = self.current_image.shape[2] if len(self.current_image.shape) == 3 else 1
-        
-        return {
-            'filename': self.current_image_path.name,
-            'filepath': str(self.current_image_path),
-            'width': width,
-            'height': height,
-            'channels': channels,
-            'rotation_angle': self.rotation_slider.value(),
-            'crop_points': self.image_widget.get_crop_points_in_image_coordinates(),
-            'zoom_factor': getattr(self.image_widget, 'zoom_factor', 1.0)
-        }
-        

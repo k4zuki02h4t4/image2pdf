@@ -1,7 +1,7 @@
 """
 メインウィンドウ
 Image2PDF アプリケーションのメインGUIウィンドウ
-修正版：FluentIconの修正とHeaderCardWidgetの正しい使用方法を適用
+修正版：MessageBox.StandardButtonエラーを完全に修正
 """
 
 import logging
@@ -573,7 +573,8 @@ class MainWindow(FluentWindow):
                 self
             ).exec()
             
-            if reply != MessageBox.StandardButton.Yes:
+            # 修正: qfluentwidgets の MessageBox は直接 bool を返す
+            if not reply:
                 event.ignore()
                 return
             
@@ -688,7 +689,8 @@ class MainWindow(FluentWindow):
             self
         ).exec()
         
-        if reply == MessageBox.StandardButton.Yes:
+        # 修正: qfluentwidgets の MessageBox は直接 bool を返す
+        if reply:
             self.image_list_widget.clear_all_images()
             self.current_images.clear()
             self._update_ui_state()
@@ -816,7 +818,8 @@ class MainWindow(FluentWindow):
                 self
             ).exec()
             
-            if reply == MessageBox.StandardButton.Yes:
+            # 修正: qfluentwidgets の MessageBox は直接 bool を返す
+            if reply:
                 os.startfile(Path(message.split(": ")[1]))  # Windows
         else:
             InfoBar.error(
