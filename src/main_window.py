@@ -1,7 +1,7 @@
 """
 メインウィンドウ
 Image2PDF アプリケーションのメインGUIウィンドウ
-修正版：MessageBox.StandardButtonエラーを完全に修正
+ナビゲーション削除版：単一画面で全機能を統合
 """
 
 import logging
@@ -13,8 +13,8 @@ import json
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QSplitter, QListWidget, QListWidgetItem, QGroupBox,
-    QFileDialog, QMessageBox, QProgressBar, QStatusBar,
-    QMenuBar, QMenu, QToolBar
+    QFileDialog, QProgressBar, QStatusBar, QTabWidget,
+    QMenuBar, QMenu, QToolBar, QScrollArea
 )
 from PyQt6.QtCore import (
     Qt, pyqtSignal, QThread, QTimer, QSettings, 
@@ -26,13 +26,13 @@ from PyQt6.QtGui import (
 )
 
 from qfluentwidgets import (
-    FluentWindow, NavigationItemPosition, FluentIcon,
     PushButton, ToolButton, CommandBar, Action,
     InfoBar, InfoBarPosition, MessageBox, Dialog,
     BodyLabel, StrongBodyLabel, ComboBox, SpinBox,
     CheckBox, LineEdit, PrimaryPushButton, TransparentPushButton,
     CardWidget, HeaderCardWidget, ElevatedCardWidget,
-    ProgressRing, StateToolTip, TeachingTip, TeachingTipTailPosition
+    ProgressRing, StateToolTip, TeachingTip, TeachingTipTailPosition,
+    FluentIcon, Theme, isDarkTheme
 )
 
 from .utils import (
@@ -41,7 +41,7 @@ from .utils import (
 )
 from .image_processor import ImageProcessor
 from .pdf_generator import PDFGenerator  
-from .crop_widget import CropWidget
+from .crop_widget import InteractiveImageWidget
 
 
 class ImageListWidget(QListWidget):
@@ -247,8 +247,8 @@ class PDFGenerationThread(QThread):
             self.generation_finished.emit(False, f"エラーが発生しました: {e}")
 
 
-class MainWindow(FluentWindow):
-    """メインウィンドウクラス"""
+class MainWindow(QMainWindow):
+    """メインウィンドウクラス - 単一画面版"""
     
     def __init__(self):
         super().__init__()
@@ -262,7 +262,7 @@ class MainWindow(FluentWindow):
         
         # UI コンポーネント
         self.image_list_widget: Optional[ImageListWidget] = None
-        self.crop_widget: Optional[CropWidget] = None
+        self.crop_widget: Optional[InteractiveImageWidget] = None
         self.progress_bar: Optional[QProgressBar] = None
         self.status_label: Optional[BodyLabel] = None
         
@@ -271,7 +271,7 @@ class MainWindow(FluentWindow):
         
         # 初期化
         self._setup_ui()
-        self._setup_navigation()
+        self._setup_menubar()
         self._setup_toolbar()
         self._setup_statusbar()
         self._connect_signals()
@@ -282,43 +282,31 @@ class MainWindow(FluentWindow):
         self.resize(1400, 900)
         self.setWindowTitle("Image2PDF - 画像からPDF変換ツール")
         
-        # 最初のページを表示
-        self.stackedWidget.setCurrentIndex(0)
-        
         self.logger.info("メインウィンドウ初期化完了")
     
     def _setup_ui(self):
         """UI初期化"""
-        # メインページの作成
-        self._create_main_page()
-        self._create_crop_page()
-        self._create_settings_page()
-    
-    def _create_main_page(self):
-        """メインページ作成"""
-        main_page = QWidget()
+        # 中央ウィジェット
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
         
-        # objectNameを設定（qfluentwidgetsの要件）
-        main_page.setObjectName("main-page")
-        
-        layout = QHBoxLayout(main_page)
-        
-        # 左側パネル（画像リスト）
-        left_panel = self._create_left_panel()
-        
-        # 右側パネル（プレビュー・設定）
-        right_panel = self._create_right_panel()
+        # メインレイアウト（水平分割）
+        main_layout = QHBoxLayout(central_widget)
         
         # スプリッター
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # 左パネル（画像リスト）
+        left_panel = self._create_left_panel()
+        
+        # 右パネル（作業エリア）
+        right_panel = self._create_right_panel()
+        
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([400, 800])
+        splitter.setSizes([400, 1000])
         
-        layout.addWidget(splitter)
-        
-        # ナビゲーションに追加
-        self.addSubInterface(main_page, FluentIcon.HOME, "メイン", NavigationItemPosition.TOP)
+        main_layout.addWidget(splitter)
     
     def _create_left_panel(self) -> QWidget:
         """左側パネル（画像リスト）作成"""
@@ -340,7 +328,7 @@ class MainWindow(FluentWindow):
         self.remove_file_btn.setEnabled(False)
         
         self.clear_all_btn = TransparentPushButton("すべてクリア")
-        self.clear_all_btn.setIcon(FluentIcon.CANCEL)  # CLEAR_SELECTION → CANCEL
+        self.clear_all_btn.setIcon(FluentIcon.CANCEL)
         self.clear_all_btn.setEnabled(False)
         
         button_layout.addWidget(self.add_files_btn)
@@ -361,29 +349,28 @@ class MainWindow(FluentWindow):
         return panel
     
     def _create_right_panel(self) -> QWidget:
-        """右側パネル（プレビュー・設定）作成"""
+        """右側パネル（作業エリア）作成"""
         panel = QWidget()
         layout = QVBoxLayout(panel)
         
-        # プレビューエリア
-        preview_card = HeaderCardWidget()
-        preview_card.setTitle("画像プレビュー")
+        # タブウィジェット
+        tab_widget = QTabWidget()
         
-        self.preview_label = BodyLabel("画像を選択してください")
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumHeight(300)
-        self.preview_label.setStyleSheet("border: 2px dashed #ccc; border-radius: 8px;")
+        # プレビュータブ
+        preview_tab = self._create_preview_tab()
+        tab_widget.addTab(preview_tab, "プレビュー")
         
-        # HeaderCardWidgetのviewLayoutに直接追加
-        preview_card.viewLayout.addWidget(self.preview_label)
+        # 切り抜きタブ
+        crop_tab = self._create_crop_tab()
+        tab_widget.addTab(crop_tab, "切り抜き・編集")
         
-        layout.addWidget(preview_card)
+        # PDF設定タブ
+        pdf_tab = self._create_pdf_tab()
+        tab_widget.addTab(pdf_tab, "PDF設定")
         
-        # PDF生成設定
-        settings_card = self._create_pdf_settings_card()
-        layout.addWidget(settings_card)
+        layout.addWidget(tab_widget)
         
-        # 生成ボタン
+        # PDF生成ボタン（常に表示）
         self.generate_pdf_btn = PrimaryPushButton("PDF生成")
         self.generate_pdf_btn.setIcon(FluentIcon.SAVE)
         self.generate_pdf_btn.setEnabled(False)
@@ -391,12 +378,116 @@ class MainWindow(FluentWindow):
         
         return panel
     
-    def _create_pdf_settings_card(self) -> CardWidget:
-        """PDF生成設定カード作成"""
-        card = HeaderCardWidget()
-        card.setTitle("PDF設定")
+    def _create_preview_tab(self) -> QWidget:
+        """プレビュータブ作成"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
         
-        # ページサイズ
+        # プレビューエリア
+        preview_card = HeaderCardWidget()
+        preview_card.setTitle("画像プレビュー")
+        
+        self.preview_label = BodyLabel("画像を選択してください")
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setMinimumHeight(400)
+        self.preview_label.setStyleSheet("border: 2px dashed #ccc; border-radius: 8px;")
+        
+        preview_card.viewLayout.addWidget(self.preview_label)
+        layout.addWidget(preview_card)
+        
+        # 画像情報カード
+        info_card = HeaderCardWidget()
+        info_card.setTitle("画像情報")
+        
+        self.filename_label = BodyLabel("ファイル: 未選択")
+        self.size_label = BodyLabel("サイズ: -")
+        self.format_label = BodyLabel("フォーマット: -")
+        
+        info_card.viewLayout.addWidget(self.filename_label)
+        info_card.viewLayout.addWidget(self.size_label)
+        info_card.viewLayout.addWidget(self.format_label)
+        
+        layout.addWidget(info_card)
+        
+        return tab
+    
+    def _create_crop_tab(self) -> QWidget:
+        """切り抜きタブ作成"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # 切り抜きウィジェット
+        self.crop_widget = InteractiveImageWidget()
+        self.crop_widget.setMinimumHeight(400)
+        layout.addWidget(self.crop_widget)
+        
+        # 切り抜き操作パネル
+        crop_control_panel = self._create_crop_control_panel()
+        layout.addWidget(crop_control_panel)
+        
+        return tab
+    
+    def _create_crop_control_panel(self) -> QWidget:
+        """切り抜き操作パネル作成"""
+        panel = CardWidget()
+        layout = QVBoxLayout(panel)
+        
+        # タイトル
+        title_label = StrongBodyLabel("切り抜き操作")
+        layout.addWidget(title_label)
+        
+        # 回転コントロール
+        rotation_layout = QHBoxLayout()
+        rotation_layout.addWidget(BodyLabel("回転角度:"))
+        
+        self.rotation_slider = ComboBox()
+        self.rotation_slider.addItems(["0°", "90°", "180°", "270°"])
+        rotation_layout.addWidget(self.rotation_slider)
+        
+        self.rotate_left_btn = PushButton("左90°")
+        self.rotate_left_btn.setIcon(FluentIcon.LEFT_ARROW)
+        
+        self.rotate_right_btn = PushButton("右90°")
+        self.rotate_right_btn.setIcon(FluentIcon.RIGHT_ARROW)
+        
+        rotation_layout.addWidget(self.rotate_left_btn)
+        rotation_layout.addWidget(self.rotate_right_btn)
+        rotation_layout.addStretch()
+        
+        layout.addLayout(rotation_layout)
+        
+        # 切り抜きボタン群
+        crop_button_layout = QHBoxLayout()
+        
+        self.reset_points_btn = PushButton("制御点リセット")
+        self.reset_points_btn.setIcon(FluentIcon.SYNC)
+        
+        self.auto_detect_btn = PushButton("自動検出")
+        self.auto_detect_btn.setIcon(FluentIcon.ROBOT)
+        
+        self.crop_btn = PrimaryPushButton("切り抜き実行")
+        self.crop_btn.setIcon(FluentIcon.CUT)
+        self.crop_btn.setEnabled(False)
+        
+        crop_button_layout.addWidget(self.reset_points_btn)
+        crop_button_layout.addWidget(self.auto_detect_btn)
+        crop_button_layout.addStretch()
+        crop_button_layout.addWidget(self.crop_btn)
+        
+        layout.addLayout(crop_button_layout)
+        
+        return panel
+    
+    def _create_pdf_tab(self) -> QWidget:
+        """PDF設定タブ作成"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # PDF設定カード
+        settings_card = HeaderCardWidget()
+        settings_card.setTitle("PDF設定")
+        
+        # ページサイズ設定
         page_size_layout = QHBoxLayout()
         page_size_layout.addWidget(BodyLabel("ページサイズ:"))
         
@@ -407,14 +498,24 @@ class MainWindow(FluentWindow):
         page_size_layout.addWidget(self.page_size_combo)
         page_size_layout.addStretch()
         
-        # オプション
+        settings_card.viewLayout.addLayout(page_size_layout)
+        
+        # オプション設定
         self.fit_to_page_cb = CheckBox("ページに合わせる")
         self.fit_to_page_cb.setChecked(True)
         
         self.maintain_aspect_cb = CheckBox("アスペクト比を維持")
         self.maintain_aspect_cb.setChecked(True)
         
-        # ファイル名設定
+        settings_card.viewLayout.addWidget(self.fit_to_page_cb)
+        settings_card.viewLayout.addWidget(self.maintain_aspect_cb)
+        
+        layout.addWidget(settings_card)
+        
+        # ファイル名設定カード
+        filename_card = HeaderCardWidget()
+        filename_card.setTitle("出力設定")
+        
         filename_layout = QHBoxLayout()
         filename_layout.addWidget(BodyLabel("ファイル名:"))
         
@@ -428,65 +529,100 @@ class MainWindow(FluentWindow):
         filename_layout.addWidget(self.filename_edit)
         filename_layout.addWidget(self.browse_btn)
         
-        # HeaderCardWidgetのviewLayoutに直接追加
-        card.viewLayout.addLayout(page_size_layout)
-        card.viewLayout.addWidget(self.fit_to_page_cb)
-        card.viewLayout.addWidget(self.maintain_aspect_cb)
-        card.viewLayout.addLayout(filename_layout)
+        filename_card.viewLayout.addLayout(filename_layout)
+        layout.addWidget(filename_card)
         
-        return card
-    
-    def _create_crop_page(self):
-        """切り抜きページ作成"""
-        self.crop_widget = CropWidget()
-        
-        # objectNameを設定（qfluentwidgetsの要件）
-        self.crop_widget.setObjectName("crop-widget")
-        
-        self.addSubInterface(self.crop_widget, FluentIcon.CUT, "画像切り抜き", NavigationItemPosition.TOP)
-    
-    def _create_settings_page(self):
-        """設定ページ作成"""
-        settings_page = QWidget()
-        
-        # objectNameを設定（qfluentwidgetsの要件）
-        settings_page.setObjectName("settings-page")
-        
-        layout = QVBoxLayout(settings_page)
-        
-        # 設定項目を追加（今後の拡張用）
-        title_label = StrongBodyLabel("アプリケーション設定")
-        layout.addWidget(title_label)
-        
-        # 自動保存設定
-        autosave_cb = CheckBox("自動保存を有効にする")
-        layout.addWidget(autosave_cb)
-        
-        # テーマ設定
-        theme_layout = QHBoxLayout()
-        theme_layout.addWidget(BodyLabel("テーマ:"))
-        
-        theme_combo = ComboBox()
-        theme_combo.addItems(["自動", "ライト", "ダーク"])
-        theme_layout.addWidget(theme_combo)
-        theme_layout.addStretch()
-        
-        layout.addLayout(theme_layout)
         layout.addStretch()
         
-        self.addSubInterface(settings_page, FluentIcon.SETTING, "設定", NavigationItemPosition.BOTTOM)
+        return tab
     
-    def _setup_navigation(self):
-        """ナビゲーション設定"""
-        pass
+    def _setup_menubar(self):
+        """メニューバー設定"""
+        menubar = self.menuBar()
+        
+        # ファイルメニュー
+        file_menu = menubar.addMenu("ファイル(&F)")
+        
+        add_files_action = QAction("画像ファイルを追加(&A)", self)
+        add_files_action.setShortcut(QKeySequence.StandardKey.Open)
+        add_files_action.setIcon(QIcon(str(FluentIcon.ADD.path())))
+        add_files_action.triggered.connect(self._add_files_dialog)
+        file_menu.addAction(add_files_action)
+        
+        file_menu.addSeparator()
+        
+        generate_pdf_action = QAction("PDF生成(&G)", self)
+        generate_pdf_action.setShortcut(QKeySequence("Ctrl+G"))
+        generate_pdf_action.setIcon(QIcon(str(FluentIcon.SAVE.path())))
+        generate_pdf_action.triggered.connect(self._generate_pdf_dialog)
+        file_menu.addAction(generate_pdf_action)
+        
+        file_menu.addSeparator()
+        
+        exit_action = QAction("終了(&X)", self)
+        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # 編集メニュー
+        edit_menu = menubar.addMenu("編集(&E)")
+        
+        remove_action = QAction("画像を削除(&D)", self)
+        remove_action.setShortcut(QKeySequence.StandardKey.Delete)
+        remove_action.triggered.connect(self._remove_current_image)
+        edit_menu.addAction(remove_action)
+        
+        clear_all_action = QAction("すべてクリア(&C)", self)
+        clear_all_action.setShortcut(QKeySequence("Ctrl+Shift+C"))
+        clear_all_action.triggered.connect(self._clear_all_images)
+        edit_menu.addAction(clear_all_action)
+        
+        # ヘルプメニュー
+        help_menu = menubar.addMenu("ヘルプ(&H)")
+        
+        about_action = QAction("Image2PDFについて(&A)", self)
+        about_action.triggered.connect(self._show_about)
+        help_menu.addAction(about_action)
     
     def _setup_toolbar(self):
         """ツールバー設定"""
-        pass
+        toolbar = self.addToolBar("メインツールバー")
+        toolbar.setMovable(False)
+        
+        # ファイル追加
+        add_files_action = QAction("画像追加", self)
+        add_files_action.setIcon(QIcon(str(FluentIcon.ADD.path())))
+        add_files_action.setToolTip("画像ファイルを追加")
+        add_files_action.triggered.connect(self._add_files_dialog)
+        toolbar.addAction(add_files_action)
+        
+        # 削除
+        remove_action = QAction("削除", self)
+        remove_action.setIcon(QIcon(str(FluentIcon.DELETE.path())))
+        remove_action.setToolTip("選択した画像を削除")
+        remove_action.triggered.connect(self._remove_current_image)
+        toolbar.addAction(remove_action)
+        
+        toolbar.addSeparator()
+        
+        # PDF生成
+        generate_action = QAction("PDF生成", self)
+        generate_action.setIcon(QIcon(str(FluentIcon.SAVE.path())))
+        generate_action.setToolTip("PDFファイルを生成")
+        generate_action.triggered.connect(self._generate_pdf_dialog)
+        toolbar.addAction(generate_action)
     
     def _setup_statusbar(self):
         """ステータスバー設定"""
-        pass
+        statusbar = self.statusBar()
+        
+        self.status_label = BodyLabel("準備完了")
+        statusbar.addWidget(self.status_label)
+        
+        # プログレスバー（非表示）
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        statusbar.addPermanentWidget(self.progress_bar)
     
     def _connect_signals(self):
         """シグナル接続"""
@@ -503,10 +639,16 @@ class MainWindow(FluentWindow):
         self.generate_pdf_btn.clicked.connect(self._generate_pdf_dialog)
         self.browse_btn.clicked.connect(self._browse_output_location)
         
-        # 切り抜きウィジェット
+        # 切り抜き関連
         if self.crop_widget:
-            self.crop_widget.crop_completed.connect(self._on_crop_completed)
-            self.crop_widget.image_rotated.connect(self._on_image_rotated)
+            self.crop_widget.points_changed.connect(self._on_crop_points_changed)
+        
+        self.reset_points_btn.clicked.connect(self._reset_crop_points)
+        self.auto_detect_btn.clicked.connect(self._auto_detect_contours)
+        self.crop_btn.clicked.connect(self._execute_crop)
+        
+        self.rotate_left_btn.clicked.connect(lambda: self._rotate_image(-90))
+        self.rotate_right_btn.clicked.connect(lambda: self._rotate_image(90))
         
         # 画像処理器
         self.image_processor.processing_error.connect(self._on_processing_error)
@@ -574,7 +716,6 @@ class MainWindow(FluentWindow):
                 self
             ).exec()
             
-            # 修正: qfluentwidgets の MessageBox は直接 bool を返す
             if not reply:
                 event.ignore()
                 return
@@ -658,12 +799,22 @@ class MainWindow(FluentWindow):
         self.clear_all_btn.setEnabled(has_images)
         self.generate_pdf_btn.setEnabled(has_images)
         
+        # 切り抜き関連ボタン
+        self.reset_points_btn.setEnabled(has_selection)
+        self.auto_detect_btn.setEnabled(has_selection)
+        
         # 統計情報
         self.stats_label.setText(f"画像: {len(self.current_images)} 個")
         
         # デフォルトファイル名設定
         if has_images and not self.filename_edit.text():
             self.filename_edit.setText("output.pdf")
+        
+        # ステータス更新
+        if has_images:
+            self.status_label.setText(f"{len(self.current_images)} 個の画像が読み込まれています")
+        else:
+            self.status_label.setText("準備完了")
     
     # イベントハンドラー
     def _add_files_dialog(self):
@@ -690,11 +841,21 @@ class MainWindow(FluentWindow):
             self
         ).exec()
         
-        # 修正: qfluentwidgets の MessageBox は直接 bool を返す
         if reply:
             self.image_list_widget.clear_all_images()
             self.current_images.clear()
             self._update_ui_state()
+            
+            # プレビューをクリア
+            self.preview_label.clear()
+            self.preview_label.setText("画像を選択してください")
+            
+            # 切り抜きウィジェットをクリア
+            if self.crop_widget:
+                self.crop_widget.original_pixmap = None
+                self.crop_widget.display_pixmap = None
+                self.crop_widget.control_points = []
+                self.crop_widget.update()
     
     def _browse_output_location(self):
         """出力場所選択"""
@@ -767,7 +928,10 @@ class MainWindow(FluentWindow):
         """PDF生成開始"""
         try:
             # プログレス表示
-            self.progress_ring = ProgressRing()
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(0)
+            
             self.state_tooltip = StateToolTip("PDF生成中", "しばらくお待ちください...", self)
             self.state_tooltip.show()
             
@@ -794,6 +958,9 @@ class MainWindow(FluentWindow):
     
     def _on_pdf_progress(self, progress: int, message: str):
         """PDF生成進捗更新"""
+        self.progress_bar.setValue(progress)
+        self.status_label.setText(message)
+        
         if hasattr(self, 'state_tooltip'):
             self.state_tooltip.setContent(f"{message} ({progress}%)")
     
@@ -819,7 +986,6 @@ class MainWindow(FluentWindow):
                 self
             ).exec()
             
-            # 修正: qfluentwidgets の MessageBox は直接 bool を返す
             if reply:
                 os.startfile(Path(message.split(": ")[1]))  # Windows
         else:
@@ -835,19 +1001,19 @@ class MainWindow(FluentWindow):
     
     def _cleanup_pdf_generation(self):
         """PDF生成関連のクリーンアップ"""
+        self.progress_bar.setVisible(False)
+        
         if hasattr(self, 'state_tooltip'):
             self.state_tooltip.setState(True)
             delattr(self, 'state_tooltip')
         
-        if hasattr(self, 'progress_ring'):
-            delattr(self, 'progress_ring')
-        
         self.generate_pdf_btn.setEnabled(True)
+        self.status_label.setText("準備完了")
         
         if self.pdf_thread:
             self.pdf_thread = None
     
-    # その他のイベントハンドラー
+    # 画像関連イベントハンドラー
     def _on_images_reordered(self, image_paths: List[str]):
         """画像順序変更時の処理"""
         self.current_images = image_paths
@@ -861,12 +1027,15 @@ class MainWindow(FluentWindow):
             if thumbnail:
                 # プレビューサイズに調整
                 preview_pixmap = thumbnail.scaled(
-                    400, 300,
+                    400, 400,
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )
                 self.preview_label.setPixmap(preview_pixmap)
                 self.preview_label.setText("")
+            
+            # 画像情報更新
+            self._update_image_info(image_path)
             
             # 切り抜きウィジェットに画像を設定
             if self.crop_widget:
@@ -877,6 +1046,33 @@ class MainWindow(FluentWindow):
         except Exception as e:
             self.logger.error(f"画像選択処理エラー: {image_path} - {e}")
     
+    def _update_image_info(self, image_path: str):
+        """画像情報を更新"""
+        try:
+            path = Path(image_path)
+            
+            # ファイル情報
+            self.filename_label.setText(f"ファイル: {path.name}")
+            self.format_label.setText(f"フォーマット: {path.suffix.upper().lstrip('.')}")
+            
+            # 画像サイズ情報
+            pixmap = self._generate_thumbnail(image_path)
+            if pixmap:
+                # 元画像のサイズを取得（概算）
+                from .utils import load_image_safely
+                original_pixmap = load_image_safely(image_path)
+                if original_pixmap:
+                    width = original_pixmap.width()
+                    height = original_pixmap.height()
+                    self.size_label.setText(f"サイズ: {width} × {height}")
+                else:
+                    self.size_label.setText("サイズ: 不明")
+            else:
+                self.size_label.setText("サイズ: 不明")
+                
+        except Exception as e:
+            self.logger.error(f"画像情報更新エラー: {e}")
+    
     def _on_image_removed(self, image_path: str):
         """画像削除時の処理"""
         if image_path in self.current_images:
@@ -886,39 +1082,208 @@ class MainWindow(FluentWindow):
         self.preview_label.clear()
         self.preview_label.setText("画像を選択してください")
         
+        # 画像情報をクリア
+        self.filename_label.setText("ファイル: 未選択")
+        self.size_label.setText("サイズ: -")
+        self.format_label.setText("フォーマット: -")
+        
         self._update_ui_state()
     
-    def _on_crop_completed(self, cropped_image):
-        """切り抜き完了時の処理"""
+    # 切り抜き関連イベントハンドラー
+    def _on_crop_points_changed(self, points: List):
+        """切り抜き制御点変更時の処理"""
+        has_four_points = len(points) == 4
+        self.crop_btn.setEnabled(has_four_points)
+    
+    def _reset_crop_points(self):
+        """切り抜き制御点をリセット"""
+        if self.crop_widget:
+            self.crop_widget.reset_points()
+    
+    def _auto_detect_contours(self):
+        """自動輪郭検出"""
         try:
-            # 切り抜かれた画像を一時ファイルとして保存
-            temp_dir = get_temp_dir()
-            temp_path = temp_dir / f"cropped_image_{len(self.current_images)}.jpg"
+            current_item = self.image_list_widget.currentItem()
+            if not current_item:
+                MessageBox("警告", "画像を選択してください", self).exec()
+                return
             
-            # OpenCV画像をファイルに保存
+            image_path = current_item.data(Qt.ItemDataRole.UserRole)
+            
+            # OpenCVで画像を読み込み
             import cv2
-            cv2.imwrite(str(temp_path), cropped_image)
+            import numpy as np
             
-            # 画像リストに追加
-            self.add_images([str(temp_path)])
+            image = cv2.imread(image_path)
+            if image is None:
+                MessageBox("エラー", "画像の読み込みに失敗しました", self).exec()
+                return
             
-            InfoBar.success(
-                title="切り抜き完了",
-                content="切り抜かれた画像をリストに追加しました",
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP_RIGHT,
-                duration=3000,
-                parent=self
-            )
+            # グレースケール変換
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # ガウシアンブラー
+            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            
+            # エッジ検出
+            edges = cv2.Canny(blurred, 50, 150, apertureSize=3)
+            
+            # 輪郭検出
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if not contours:
+                MessageBox("情報", "文書の輪郭を検出できませんでした", self).exec()
+                return
+            
+            # 最大面積の輪郭を選択
+            largest_contour = max(contours, key=cv2.contourArea)
+            
+            # 輪郭を4点に近似
+            epsilon = 0.02 * cv2.arcLength(largest_contour, True)
+            approx = cv2.approxPolyDP(largest_contour, epsilon, True)
+            
+            if len(approx) == 4:
+                # 4点が検出された場合
+                points = [(int(point[0][0]), int(point[0][1])) for point in approx]
+                if self.crop_widget:
+                    self.crop_widget.set_crop_points(points)
+                MessageBox("成功", "文書の輪郭を自動検出しました", self).exec()
+            else:
+                # 4点でない場合は画像の四隅に設定
+                height, width = image.shape[:2]
+                margin = min(width, height) // 20
+                points = [
+                    (margin, margin),
+                    (width - margin, margin),
+                    (width - margin, height - margin),
+                    (margin, height - margin)
+                ]
+                if self.crop_widget:
+                    self.crop_widget.set_crop_points(points)
+                MessageBox("情報", "4角形の輪郭が検出できなかったため、デフォルトの範囲を設定しました", self).exec()
             
         except Exception as e:
-            self.logger.error(f"切り抜き完了処理エラー: {e}")
+            self.logger.error(f"自動検出エラー: {e}")
+            MessageBox("エラー", f"自動検出でエラーが発生しました:\n{e}", self).exec()
     
-    def _on_image_rotated(self, angle: float):
-        """画像回転完了時の処理"""
-        self.logger.info(f"画像を {angle}度 回転しました")
+    def _execute_crop(self):
+        """切り抜き実行"""
+        try:
+            current_item = self.image_list_widget.currentItem()
+            if not current_item:
+                MessageBox("警告", "画像を選択してください", self).exec()
+                return
+            
+            image_path = current_item.data(Qt.ItemDataRole.UserRole)
+            
+            if not self.crop_widget:
+                MessageBox("エラー", "切り抜きウィジェットが初期化されていません", self).exec()
+                return
+            
+            # 制御点を取得
+            crop_points = self.crop_widget.get_crop_points_in_image_coordinates()
+            if len(crop_points) != 4:
+                MessageBox("警告", "4つの制御点を設定してください", self).exec()
+                return
+            
+            # 画像処理を実行
+            import cv2
+            
+            image = cv2.imread(image_path)
+            if image is None:
+                MessageBox("エラー", "画像の読み込みに失敗しました", self).exec()
+                return
+            
+            # 回転を適用（必要に応じて）
+            rotation_angle = 0
+            rotation_text = self.rotation_slider.currentText()
+            if rotation_text == "90°":
+                rotation_angle = 90
+            elif rotation_text == "180°":
+                rotation_angle = 180
+            elif rotation_text == "270°":
+                rotation_angle = 270
+            
+            if rotation_angle != 0:
+                working_image = self.image_processor.rotate_image(image, rotation_angle)
+            else:
+                working_image = image
+            
+            # 4点切り抜きを実行
+            cropped_image = self.image_processor.crop_image_with_four_points(working_image, crop_points)
+            
+            if cropped_image is not None:
+                # 切り抜かれた画像を一時ファイルとして保存
+                temp_dir = get_temp_dir()
+                temp_path = temp_dir / f"cropped_image_{len(self.current_images)}.jpg"
+                
+                cv2.imwrite(str(temp_path), cropped_image)
+                
+                # 画像リストに追加
+                self.add_images([str(temp_path)])
+                
+                InfoBar.success(
+                    title="切り抜き完了",
+                    content="切り抜かれた画像をリストに追加しました",
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    duration=3000,
+                    parent=self
+                )
+            else:
+                MessageBox("エラー", "切り抜き処理に失敗しました", self).exec()
+            
+        except Exception as e:
+            self.logger.error(f"切り抜き実行エラー: {e}")
+            MessageBox("エラー", f"切り抜き処理でエラーが発生しました:\n{e}", self).exec()
     
+    def _rotate_image(self, angle: int):
+        """画像回転"""
+        current_rotation = self.rotation_slider.currentText()
+        current_angle = 0
+        if current_rotation == "90°":
+            current_angle = 90
+        elif current_rotation == "180°":
+            current_angle = 180
+        elif current_rotation == "270°":
+            current_angle = 270
+        
+        new_angle = (current_angle + angle) % 360
+        
+        if new_angle == 0:
+            self.rotation_slider.setCurrentText("0°")
+        elif new_angle == 90:
+            self.rotation_slider.setCurrentText("90°")
+        elif new_angle == 180:
+            self.rotation_slider.setCurrentText("180°")
+        elif new_angle == 270:
+            self.rotation_slider.setCurrentText("270°")
+    
+    def _show_about(self):
+        """アプリケーション情報表示"""
+        about_text = """
+        <h3>Image2PDF v1.0.0</h3>
+        <p>Windows 11対応の画像からPDF変換ツール</p>
+        <p><b>作者:</b> K4zuki T.</p>
+        <p><b>ライセンス:</b> MIT License</p>
+        <br>
+        <p><b>機能:</b></p>
+        <ul>
+        <li>複数画像の一括PDF変換</li>
+        <li>4点指定による画像切り抜き</li>
+        <li>画像回転・編集</li>
+        <li>ドラッグ&ドロップ対応</li>
+        </ul>
+        """
+        
+        MessageBox(
+            "Image2PDFについて",
+            about_text,
+            self
+        ).exec()
+    
+    # エラーハンドラー
     def _on_processing_error(self, operation: str, error_message: str):
         """画像処理エラー時の処理"""
         InfoBar.error(

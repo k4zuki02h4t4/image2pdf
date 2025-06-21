@@ -2,6 +2,7 @@
 """
 Image2PDF - Windows 11対応画像からPDF変換ツール
 モダンなUIデザインのデスクトップアプリケーション
+ナビゲーション削除版：単一画面で全機能を統合
 
 Author: K4zuki T.
 License: MIT
@@ -14,8 +15,8 @@ from pathlib import Path
 
 # PyQt6とqfluentwidgetsのインポート
 try:
-    from PyQt6.QtWidgets import QApplication, QMessageBox
-    from PyQt6.QtCore import Qt, QDir
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtCore import Qt
     from PyQt6.QtGui import QIcon
     from qfluentwidgets import setTheme, Theme, setThemeColor
     
@@ -57,9 +58,12 @@ class Image2PDFApplication:
         if hasattr(Qt.ApplicationAttribute, 'AA_UseHighDpiPixmaps'):
             self.app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
         
-        # テーマ設定
-        setTheme(Theme.AUTO)  # システムテーマに自動追従
-        setThemeColor('#3498db')  # モダンブルーをアクセントカラーに
+        # テーマ設定（qfluentwidgetsの基本テーマのみ）
+        try:
+            setTheme(Theme.AUTO)  # システムテーマに自動追従
+            setThemeColor('#3498db')  # モダンブルーをアクセントカラーに
+        except Exception as e:
+            logging.warning(f"テーマ設定でエラーが発生しました: {e}")
         
     def setup_directories(self):
         """必要なディレクトリの作成"""
@@ -100,6 +104,7 @@ class Image2PDFApplication:
             
             # エラーダイアログ表示
             if hasattr(self, 'app') and self.app:
+                from PyQt6.QtWidgets import QMessageBox
                 msg_box = QMessageBox()
                 msg_box.setIcon(QMessageBox.Icon.Critical)
                 msg_box.setWindowTitle("エラー")
