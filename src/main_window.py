@@ -357,10 +357,6 @@ class MainWindow(QMainWindow):
         self.image_list_widget = ImageListWidget()
         layout.addWidget(self.image_list_widget)
         
-        # 統計情報
-        self.stats_label = BodyLabel("画像: 0 個")
-        layout.addWidget(self.stats_label)
-        
         return panel
     
     def _create_right_panel(self) -> QWidget:
@@ -730,18 +726,9 @@ class MainWindow(QMainWindow):
         self.reset_points_btn.setEnabled(has_selection)
         self.auto_detect_btn.setEnabled(has_selection)
         
-        # 統計情報
-        self.stats_label.setText(f"画像: {len(self.current_images)} 個")
-        
         # デフォルトファイル名設定
         if has_images and not self.filename_edit.text():
             self.filename_edit.setText("output.pdf")
-        
-        # ステータス更新
-        if has_images:
-            self.status_label.setText(f"{len(self.current_images)} 個の画像が読み込まれています")
-        else:
-            self.status_label.setText("準備完了")
     
     # イベントハンドラー
     def _add_files_dialog(self):
@@ -1186,29 +1173,6 @@ class MainWindow(QMainWindow):
             self.rotation_slider.setCurrentText("180°")
         elif new_angle == 270:
             self.rotation_slider.setCurrentText("270°")
-    
-    def _show_about(self):
-        """アプリケーション情報表示"""
-        about_text = """
-        <h3>Image2PDF v1.0.0</h3>
-        <p>Windows 11対応の画像からPDF変換ツール</p>
-        <p><b>作者:</b> K4zuki T.</p>
-        <p><b>ライセンス:</b> MIT License</p>
-        <br>
-        <p><b>機能:</b></p>
-        <ul>
-        <li>複数画像の一括PDF変換</li>
-        <li>4点指定による画像切り抜き</li>
-        <li>画像回転・編集</li>
-        <li>ドラッグ&ドロップ対応</li>
-        </ul>
-        """
-        
-        MessageBox(
-            "Image2PDFについて",
-            about_text,
-            self
-        ).exec()
     
     # エラーハンドラー
     def _on_processing_error(self, operation: str, error_message: str):
