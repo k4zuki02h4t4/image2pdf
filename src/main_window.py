@@ -341,6 +341,7 @@ class MainWindow(FluentWindow):
         
         self.clear_all_btn = TransparentPushButton("すべてクリア")
         self.clear_all_btn.setIcon(FluentIcon.CANCEL)  # CLEAR_SELECTION → CANCEL
+        self.clear_all_btn.setEnabled(False)
         
         button_layout.addWidget(self.add_files_btn)
         button_layout.addWidget(self.remove_file_btn)
