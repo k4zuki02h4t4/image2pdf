@@ -2,6 +2,7 @@
 メインウィンドウ
 Image2PDF アプリケーションのメインGUIウィンドウ
 ナビゲーション削除版：単一画面で全機能を統合
+リサイズハンドル削除対応版
 """
 
 import logging
@@ -248,7 +249,7 @@ class PDFGenerationThread(QThread):
 
 
 class MainWindow(QMainWindow):
-    """メインウィンドウクラス - 単一画面版"""
+    """メインウィンドウクラス - 単一画面版（リサイズハンドル削除対応）"""
     
     def __init__(self):
         super().__init__()
@@ -275,12 +276,29 @@ class MainWindow(QMainWindow):
         self._connect_signals()
         self._load_settings()
         
-        # ウィンドウ設定
-        self.setFixedSize(1200, 800)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowType.MSWindowsFixedSizeDialogHint)
-        self.setWindowTitle("Image2PDF - 画像からPDF変換ツール")
+        # ウィンドウ設定（リサイズ完全無効化）
+        self._setup_window_properties()
         
         self.logger.info("メインウィンドウ初期化完了")
+    
+    def _setup_window_properties(self):
+        """ウィンドウプロパティ設定（リサイズ完全無効化）"""
+        # 固定サイズ設定
+        self.setFixedSize(1200, 800)
+        
+        # ウィンドウフラグ設定（最大化ボタン無効化も含む）
+        window_flags = (
+            Qt.WindowType.Window |
+            Qt.WindowType.CustomizeWindowHint |
+            Qt.WindowType.WindowTitleHint |
+            Qt.WindowType.WindowCloseButtonHint |
+            Qt.WindowType.WindowMinimizeButtonHint |
+            Qt.WindowType.MSWindowsFixedSizeDialogHint
+        )
+        self.setWindowFlags(window_flags)
+        
+        # ウィンドウタイトル設定
+        self.setWindowTitle("Image2PDF - 画像からPDF変換ツール")
     
     def _setup_ui(self):
         """UI初期化"""
@@ -535,8 +553,11 @@ class MainWindow(QMainWindow):
         return tab
     
     def _setup_statusbar(self):
-        """ステータスバー設定"""
+        """ステータスバー設定（リサイズハンドル完全無効化）"""
         statusbar = self.statusBar()
+        
+        # 重要：QSizeGripを無効化してリサイズハンドルを削除
+        statusbar.setSizeGripEnabled(False)
         
         self.status_label = BodyLabel("準備完了")
         statusbar.addWidget(self.status_label)
