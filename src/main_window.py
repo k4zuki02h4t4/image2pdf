@@ -265,7 +265,6 @@ class MainWindow(QMainWindow):
         self.image_list_widget: Optional[ImageListWidget] = None
         self.crop_widget: Optional[InteractiveImageWidget] = None
         self.progress_bar: Optional[QProgressBar] = None
-        self.status_label: Optional[BodyLabel] = None
         
         # PDF生成スレッド
         self.pdf_thread: Optional[PDFGenerationThread] = None
@@ -873,7 +872,6 @@ class MainWindow(QMainWindow):
     def _on_pdf_progress(self, progress: int, message: str):
         """PDF生成進捗更新"""
         self.progress_bar.setValue(progress)
-        self.status_label.setText(message)
         
         if hasattr(self, 'state_tooltip'):
             self.state_tooltip.setContent(f"{message} ({progress}%)")
@@ -922,7 +920,6 @@ class MainWindow(QMainWindow):
             delattr(self, 'state_tooltip')
         
         self.generate_pdf_btn.setEnabled(True)
-        self.status_label.setText("準備完了")
         
         if self.pdf_thread:
             self.pdf_thread = None
