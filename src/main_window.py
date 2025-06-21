@@ -39,6 +39,7 @@ from qfluentwidgets import (
 from .utils import (
     is_image_file, get_image_filter_string, 
     validate_and_prepare_output_path, check_file_overwrite,
+    format_file_size, get_temp_dir,
     get_pdf_page_size_list, get_pdf_margin_preset_list,
     PDF_PAGE_SIZES, PDF_MARGIN_PRESETS, PDF_GENERATION_MODES, PDF_DEFAULTS
 )
@@ -138,13 +139,14 @@ class ImageListWidget(QListWidget):
             image_path = current_item.data(Qt.ItemDataRole.UserRole)
             self.image_selected.emit(image_path)
     
-    def add_image(self, image_path: str, thumbnail: Optional[QPixmap] = None):
+    def add_image(self, image_path: str, thumbnail: Optional[QPixmap] = None) -> bool:
         """画像をリストに追加"""
         try:
             path = Path(image_path)
             if not path.exists():
-                return
-            
+                self.logger.warning(f"画像ファイルが存在しません: {image_path}")
+                return False
+
             # アイテム作成
             item = QListWidgetItem()
             item.setText(f"{path.name}\n{format_file_size(path.stat().st_size)}")
@@ -165,9 +167,11 @@ class ImageListWidget(QListWidget):
             
             self.addItem(item)
             self.logger.info(f"画像をリストに追加: {path.name}")
-            
+            return True
+
         except Exception as e:
             self.logger.error(f"画像リスト追加エラー: {image_path} - {e}")
+            return False
     
     def remove_current_image(self):
         """現在選択中の画像を削除"""
