@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QSplitter, QListWidget, QListWidgetItem, QGroupBox,
     QFileDialog, QProgressBar, QStatusBar, QTabWidget,
-    QMenuBar, QMenu, QToolBar, QScrollArea
+    QMenuBar, QMenu, QToolBar, QScrollArea, QHeaderView
 )
 from PyQt6.QtCore import (
     Qt, pyqtSignal, QThread, QTimer, QSettings, 
@@ -271,15 +271,13 @@ class MainWindow(QMainWindow):
         
         # 初期化
         self._setup_ui()
-        self._setup_menubar()
-        self._setup_toolbar()
         self._setup_statusbar()
         self._connect_signals()
         self._load_settings()
         
         # ウィンドウ設定
-        self.setMinimumSize(1200, 800)
-        self.resize(1400, 900)
+        self.setFixedSize(1200, 800)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.MSWindowsFixedSizeDialogHint)
         self.setWindowTitle("Image2PDF - 画像からPDF変換ツール")
         
         self.logger.info("メインウィンドウ初期化完了")
@@ -535,82 +533,6 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         
         return tab
-    
-    def _setup_menubar(self):
-        """メニューバー設定"""
-        menubar = self.menuBar()
-        
-        # ファイルメニュー
-        file_menu = menubar.addMenu("ファイル(&F)")
-        
-        add_files_action = QAction("画像ファイルを追加(&A)", self)
-        add_files_action.setShortcut(QKeySequence.StandardKey.Open)
-        add_files_action.setIcon(QIcon(str(FluentIcon.ADD.path())))
-        add_files_action.triggered.connect(self._add_files_dialog)
-        file_menu.addAction(add_files_action)
-        
-        file_menu.addSeparator()
-        
-        generate_pdf_action = QAction("PDF生成(&G)", self)
-        generate_pdf_action.setShortcut(QKeySequence("Ctrl+G"))
-        generate_pdf_action.setIcon(QIcon(str(FluentIcon.SAVE.path())))
-        generate_pdf_action.triggered.connect(self._generate_pdf_dialog)
-        file_menu.addAction(generate_pdf_action)
-        
-        file_menu.addSeparator()
-        
-        exit_action = QAction("終了(&X)", self)
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
-        # 編集メニュー
-        edit_menu = menubar.addMenu("編集(&E)")
-        
-        remove_action = QAction("画像を削除(&D)", self)
-        remove_action.setShortcut(QKeySequence.StandardKey.Delete)
-        remove_action.triggered.connect(self._remove_current_image)
-        edit_menu.addAction(remove_action)
-        
-        clear_all_action = QAction("すべてクリア(&C)", self)
-        clear_all_action.setShortcut(QKeySequence("Ctrl+Shift+C"))
-        clear_all_action.triggered.connect(self._clear_all_images)
-        edit_menu.addAction(clear_all_action)
-        
-        # ヘルプメニュー
-        help_menu = menubar.addMenu("ヘルプ(&H)")
-        
-        about_action = QAction("Image2PDFについて(&A)", self)
-        about_action.triggered.connect(self._show_about)
-        help_menu.addAction(about_action)
-    
-    def _setup_toolbar(self):
-        """ツールバー設定"""
-        toolbar = self.addToolBar("メインツールバー")
-        toolbar.setMovable(False)
-        
-        # ファイル追加
-        add_files_action = QAction("画像追加", self)
-        add_files_action.setIcon(QIcon(str(FluentIcon.ADD.path())))
-        add_files_action.setToolTip("画像ファイルを追加")
-        add_files_action.triggered.connect(self._add_files_dialog)
-        toolbar.addAction(add_files_action)
-        
-        # 削除
-        remove_action = QAction("削除", self)
-        remove_action.setIcon(QIcon(str(FluentIcon.DELETE.path())))
-        remove_action.setToolTip("選択した画像を削除")
-        remove_action.triggered.connect(self._remove_current_image)
-        toolbar.addAction(remove_action)
-        
-        toolbar.addSeparator()
-        
-        # PDF生成
-        generate_action = QAction("PDF生成", self)
-        generate_action.setIcon(QIcon(str(FluentIcon.SAVE.path())))
-        generate_action.setToolTip("PDFファイルを生成")
-        generate_action.triggered.connect(self._generate_pdf_dialog)
-        toolbar.addAction(generate_action)
     
     def _setup_statusbar(self):
         """ステータスバー設定"""
