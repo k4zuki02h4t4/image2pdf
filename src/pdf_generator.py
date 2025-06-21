@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import List, Union, Optional, Tuple
 import io
+import os
 
 import img2pdf
 from PIL import Image
@@ -20,7 +21,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from .utils import get_temp_dir, sanitize_filename, format_file_size
+from .utils import get_temp_dir, sanitize_filename, format_file_size, validate_and_prepare_output_path
 
 
 class PDFGenerator(QObject):
@@ -72,8 +73,13 @@ class PDFGenerator(QObject):
                 raise ValueError("画像ファイルが指定されていません")
             
             self.generation_started.emit(len(image_paths))
-            output_path = Path(output_path)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 出力パスを検証・準備
+            success, validated_path, error_msg = validate_and_prepare_output_path(output_path)
+            if not success:
+                raise ValueError(f"出力パス検証エラー: {error_msg}")
+            
+            output_path = validated_path
             
             # 有効な画像ファイルのみフィルタリング
             valid_images = []
@@ -103,14 +109,22 @@ class PDFGenerator(QObject):
             
             self.progress_updated.emit(50, "PDFを生成中...")
             
+            # 一時ファイルを使用して安全に書き込み
+            temp_path = output_path.with_suffix('.tmp')
+            
             # img2pdfでPDF生成
-            with open(output_path, "wb") as pdf_file:
+            with open(temp_path, "wb") as pdf_file:
                 if layout_func:
                     pdf_bytes = img2pdf.convert(valid_images, layout_fun=layout_func)
                 else:
                     pdf_bytes = img2pdf.convert(valid_images)
                 pdf_file.write(pdf_bytes)
             
+            # 一時ファイルを最終ファイルに移動
+            if output_path.exists():
+                output_path.unlink()  # 既存ファイルを削除
+            temp_path.rename(output_path)
+
             self.progress_updated.emit(100, "完了")
             self.generation_finished.emit(str(output_path))
             
@@ -126,6 +140,15 @@ class PDFGenerator(QObject):
         except Exception as e:
             self.logger.error(f"PDF生成エラー: {e}")
             self.generation_error.emit(str(e))
+            
+            # 一時ファイルのクリーンアップ
+            try:
+                temp_path = Path(str(output_path)).with_suffix('.tmp')
+                if temp_path.exists():
+                    temp_path.unlink()
+            except:
+                pass
+                
             return False
     
     def generate_pdf_advanced(
@@ -162,11 +185,19 @@ class PDFGenerator(QObject):
                 raise ValueError("画像ファイルが指定されていません")
             
             self.generation_started.emit(len(image_paths))
-            output_path = Path(output_path)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 出力パスを検証・準備
+            success, validated_path, error_msg = validate_and_prepare_output_path(output_path)
+            if not success:
+                raise ValueError(f"出力パス検証エラー: {error_msg}")
+            
+            output_path = validated_path
+            
+            # 一時ファイルを使用して安全に書き込み
+            temp_path = output_path.with_suffix('.tmp')
             
             # PDFキャンバス作成
-            pdf_canvas = canvas.Canvas(str(output_path), pagesize=page_size)
+            pdf_canvas = canvas.Canvas(str(temp_path), pagesize=page_size)
             
             # メタデータ設定
             if title:
@@ -256,6 +287,11 @@ class PDFGenerator(QObject):
             self.progress_updated.emit(95, "PDFファイルを保存中...")
             pdf_canvas.save()
             
+            # 一時ファイルを最終ファイルに移動
+            if output_path.exists():
+                output_path.unlink()  # 既存ファイルを削除
+            temp_path.rename(output_path)
+            
             self.progress_updated.emit(100, "完了")
             self.generation_finished.emit(str(output_path))
             
@@ -271,6 +307,15 @@ class PDFGenerator(QObject):
         except Exception as e:
             self.logger.error(f"高度PDF生成エラー: {e}")
             self.generation_error.emit(str(e))
+            
+            # 一時ファイルのクリーンアップ
+            try:
+                temp_path = Path(str(output_path)).with_suffix('.tmp')
+                if temp_path.exists():
+                    temp_path.unlink()
+            except:
+                pass
+                
             return False
     
     def _get_img2pdf_layout(self, page_size: str, fit_to_page: bool):
@@ -368,8 +413,16 @@ class PDFGenerator(QObject):
             
             self.progress_updated.emit(0, "PDF結合を開始中...")
             
-            merger = PdfMerger()
+            # 出力パスを検証・準備
+            success, validated_path, error_msg = validate_and_prepare_output_path(output_path)
+            if not success:
+                raise ValueError(f"出力パス検証エラー: {error_msg}")
             
+            output_path = validated_path
+            
+            merger = PdfMerger()
+            temp_path = output_path.with_suffix('.tmp')
+
             for i, pdf_path in enumerate(pdf_paths):
                 pdf_path = Path(pdf_path)
                 if pdf_path.exists():
@@ -385,10 +438,15 @@ class PDFGenerator(QObject):
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
-            with open(output_path, 'wb') as output_file:
+            with open(temp_path, 'wb') as output_file:
                 merger.write(output_file)
             
             merger.close()
+            
+            # 一時ファイルを最終ファイルに移動
+            if output_path.exists():
+                output_path.unlink()
+            temp_path.rename(output_path)
             
             self.progress_updated.emit(100, "PDF結合完了")
             self.generation_finished.emit(str(output_path))
@@ -399,6 +457,15 @@ class PDFGenerator(QObject):
         except Exception as e:
             self.logger.error(f"PDF結合エラー: {e}")
             self.generation_error.emit(str(e))
+            
+            # 一時ファイルのクリーンアップ
+            try:
+                temp_path = Path(str(output_path)).with_suffix('.tmp')
+                if temp_path.exists():
+                    temp_path.unlink()
+            except:
+                pass
+
             return False
     
     def get_pdf_info(self, pdf_path: Union[str, Path]) -> Optional[dict]:

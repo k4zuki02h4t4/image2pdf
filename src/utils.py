@@ -5,12 +5,100 @@
 
 import logging
 import sys
+import os
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 import mimetypes
 
 from PyQt6.QtCore import QStandardPaths
 from PyQt6.QtGui import QPixmap
+
+
+def validate_and_prepare_output_path(output_path: Union[str, Path]) -> Tuple[bool, Path, str]:
+    """
+    PDF出力パスを検証・準備する
+    
+    Args:
+        output_path: 出力パス
+        
+    Returns:
+        (success, normalized_path, error_message)
+    """
+    try:
+        # パスオブジェクトに変換
+        path = Path(output_path)
+        
+        # 相対パスの場合は絶対パスに変換
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        
+        # パスを正規化
+        path = path.resolve()
+        
+        # 拡張子をチェック・追加
+        if not path.suffix.lower() == '.pdf':
+            path = path.with_suffix('.pdf')
+        
+        # 親ディレクトリの存在確認・作成
+        parent_dir = path.parent
+        if not parent_dir.exists():
+            try:
+                parent_dir.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                return False, path, f"ディレクトリ作成権限がありません: {parent_dir}"
+            except OSError as e:
+                return False, path, f"ディレクトリ作成エラー: {e}"
+        
+        # 書き込み権限チェック
+        if parent_dir.exists() and not os.access(parent_dir, os.W_OK):
+            return False, path, f"書き込み権限がありません: {parent_dir}"
+        
+        # ファイル名の妥当性チェック
+        filename = path.name
+        if not filename or filename in ['', '.pdf']:
+            return False, path, "有効なファイル名を指定してください"
+        
+        # Windowsでの無効な文字をチェック
+        invalid_chars = '<>:"|?*'
+        if any(char in filename for char in invalid_chars):
+            return False, path, f"ファイル名に無効な文字が含まれています: {invalid_chars}"
+        
+        # パスの長さチェック（Windows）
+        if len(str(path)) > 260:
+            return False, path, "パスが長すぎます（260文字制限）"
+        
+        return True, path, ""
+        
+    except Exception as e:
+        return False, Path(output_path), f"パス検証エラー: {e}"
+
+
+def check_file_overwrite(file_path: Path) -> Tuple[bool, str]:
+    """
+    ファイル上書きをチェック
+    
+    Args:
+        file_path: ファイルパス
+        
+    Returns:
+        (should_overwrite, message)
+    """
+    if file_path.exists():
+        file_size = format_file_size(file_path.stat().st_size)
+        modified_time = file_path.stat().st_mtime
+        import datetime
+        modified_str = datetime.datetime.fromtimestamp(modified_time).strftime('%Y-%m-%d %H:%M:%S')
+        
+        message = (
+            f"ファイルが既に存在します:\n"
+            f"ファイル名: {file_path.name}\n"
+            f"サイズ: {file_size}\n"
+            f"更新日時: {modified_str}\n\n"
+            f"上書きしますか？"
+        )
+        return True, message
+    
+    return False, ""
 
 
 def setup_logging(log_file_path: Path, level: int = logging.INFO) -> None:

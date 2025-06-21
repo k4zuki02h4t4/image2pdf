@@ -38,7 +38,8 @@ from qfluentwidgets import (
 
 from .utils import (
     is_image_file, get_image_filter_string, 
-    validate_pdf_filename, format_file_size, get_temp_dir
+    validate_pdf_filename, format_file_size, get_temp_dir,
+    validate_and_prepare_output_path, check_file_overwrite
 )
 from .image_processor import ImageProcessor
 from .pdf_generator import PDFGenerator  
@@ -771,16 +772,39 @@ class MainWindow(QMainWindow):
     
     def _browse_output_location(self):
         """出力場所選択"""
+        # デフォルトファイル名を生成
+        default_name = "output.pdf"
+        if self.current_images:
+            # 最初の画像ファイル名を基にする
+            first_image = Path(self.current_images[0])
+            default_name = f"{first_image.stem}.pdf"
+        
+        default_path = self.last_output_directory / default_name
+        
         filename, _ = QFileDialog.getSaveFileName(
             self,
-            "PDFファイル保存場所を選択",
-            str(self.last_output_directory / "output.pdf"),
+            "PDFファイル保存場所を選択", 
+            str(default_path),
             "PDF files (*.pdf);;All files (*.*)"
         )
         
         if filename:
-            self.filename_edit.setText(filename)
-            self.last_output_directory = Path(filename).parent
+            # パスを検証・準備
+            success, validated_path, error_msg = validate_and_prepare_output_path(filename)
+            
+            if success:
+                self.filename_edit.setText(str(validated_path))
+                self.last_output_directory = validated_path.parent
+            else:
+                InfoBar.error(
+                    title="パスエラー",
+                    content=error_msg,
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    duration=5000,
+                    parent=self
+                )
     
     def _generate_pdf_dialog(self):
         """PDF生成実行"""
@@ -811,7 +835,35 @@ class MainWindow(QMainWindow):
                 )
                 return
             
-            output_path = validate_pdf_filename(output_path)
+            # パスを検証・準備
+            success, validated_path, error_msg = validate_and_prepare_output_path(output_path)
+            
+            if not success:
+                InfoBar.error(
+                    title="パスエラー",
+                    content=error_msg,
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    duration=5000,
+                    parent=self
+                )
+                return
+            
+            # ファイル上書き確認
+            needs_overwrite, overwrite_msg = check_file_overwrite(validated_path)
+            if needs_overwrite:
+                reply = MessageBox(
+                    "ファイル上書き確認",
+                    overwrite_msg,
+                    self
+                ).exec()
+                
+                if not reply:
+                    return  # ユーザーがキャンセル
+            
+            # 最終的な出力パスを設定
+            final_output_path = str(validated_path)
             
             # PDF生成設定を収集
             pdf_settings = {
@@ -822,7 +874,7 @@ class MainWindow(QMainWindow):
             }
             
             # PDF生成スレッドを開始
-            self._start_pdf_generation(output_path, pdf_settings)
+            self._start_pdf_generation(final_output_path, pdf_settings)
             
         except Exception as e:
             self.logger.error(f"PDF生成開始エラー: {e}")
