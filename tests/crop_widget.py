@@ -1,6 +1,7 @@
 """
 4点切り抜きウィジェット
 マウスで4つの点を指定して画像の切り抜き範囲を設定するウィジェット
+修正版：QMessageBox.StandardButtonエラーを修正
 """
 
 import logging
@@ -23,7 +24,7 @@ from qfluentwidgets import (
     PushButton, BodyLabel, Slider, SpinBox,
     CardWidget, StrongBodyLabel, IconWidget,
     FluentIcon, Theme, isDarkTheme, PrimaryPushButton,
-    TransparentPushButton, Dialog
+    TransparentPushButton, Dialog, MessageBox
 )
 
 from .utils import load_image_safely, resize_keeping_aspect_ratio
@@ -40,6 +41,9 @@ class InteractiveImageWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
+        
+        # objectNameを設定（qfluentwidgetsの要件）
+        self.setObjectName("interactive-image-widget")
         
         # 画像データ
         self.original_pixmap: Optional[QPixmap] = None
@@ -115,335 +119,6 @@ class InteractiveImageWidget(QWidget):
             return True
             
         except Exception as e:
-            self.logger.error(f"画像設定エラー: {image_path} - {e}")
-            return False
-    
-    def _update_image_info(self):
-        """画像情報を更新"""
-        if not self.current_image_path or self.current_image is None:
-            self.filename_label.setText("ファイル: 未選択")
-            self.size_label.setText("サイズ: -")
-            self.format_label.setText("フォーマット: -")
-            return
-        
-        height, width = self.current_image.shape[:2]
-        channels = self.current_image.shape[2] if len(self.current_image.shape) == 3 else 1
-        
-        self.filename_label.setText(f"ファイル: {self.current_image_path.name}")
-        self.size_label.setText(f"サイズ: {width} × {height}")
-        
-        format_name = self.current_image_path.suffix.upper().lstrip('.')
-        channel_info = f"カラー" if channels == 3 else f"グレースケール" if channels == 1 else f"{channels}ch"
-        self.format_label.setText(f"フォーマット: {format_name} ({channel_info})")
-    
-    def _on_points_changed(self, points: List[Tuple[int, int]]):
-        """制御点変更時の処理"""
-        self.points_label.setText(f"制御点: {len(points)}/4")
-        
-        # ボタンの有効/無効設定
-        has_four_points = len(points) == 4
-        self.crop_btn.setEnabled(has_four_points)
-        self.preview_btn.setEnabled(has_four_points)
-        
-        # ズーム情報を更新
-        zoom_percent = int(self.image_widget.zoom_factor * 100)
-        self.zoom_label.setText(f"ズーム: {zoom_percent}%")
-    
-    def _on_rotation_changed(self, angle: int):
-        """回転角度変更時の処理"""
-        # リアルタイム回転は重いので実装しない
-        # 実際の回転は「切り抜き実行」時に行う
-        pass
-    
-    def _rotate_by_angle(self, angle: int):
-        """指定角度だけ回転"""
-        current_angle = self.rotation_slider.value()
-        new_angle = (current_angle + angle) % 360
-        if new_angle > 180:
-            new_angle -= 360
-        self.rotation_slider.setValue(new_angle)
-    
-    def _zoom_in(self):
-        """ズームイン"""
-        if hasattr(self.image_widget, 'zoom_factor'):
-            new_zoom = min(self.image_widget.zoom_factor * 1.2, self.image_widget.max_zoom)
-            self.image_widget.zoom_factor = new_zoom
-            self.image_widget.update()
-            self._update_zoom_display()
-    
-    def _zoom_out(self):
-        """ズームアウト"""
-        if hasattr(self.image_widget, 'zoom_factor'):
-            new_zoom = max(self.image_widget.zoom_factor / 1.2, self.image_widget.min_zoom)
-            self.image_widget.zoom_factor = new_zoom
-            self.image_widget.update()
-            self._update_zoom_display()
-    
-    def _zoom_fit(self):
-        """全体表示"""
-        if hasattr(self.image_widget, 'zoom_factor'):
-            self.image_widget.zoom_factor = 1.0
-            self.image_widget.pan_offset = QPoint(0, 0)
-            self.image_widget.update()
-            self._update_zoom_display()
-    
-    def _update_zoom_display(self):
-        """ズーム表示を更新"""
-        if hasattr(self.image_widget, 'zoom_factor'):
-            zoom_percent = int(self.image_widget.zoom_factor * 100)
-            self.zoom_label.setText(f"ズーム: {zoom_percent}%")
-    
-    def _auto_detect_contours(self):
-        """文書の輪郭を自動検出"""
-        try:
-            if self.current_image is None:
-                QMessageBox.warning(self, "エラー", "画像が設定されていません")
-                return
-            
-            # グレースケール変換
-            gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
-            
-            # ガウシアンブラー
-            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-            
-            # エッジ検出
-            edges = cv2.Canny(blurred, 50, 150, apertureSize=3)
-            
-            # 輪郭検出
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            
-            if not contours:
-                QMessageBox.information(self, "情報", "文書の輪郭を検出できませんでした")
-                return
-            
-            # 最大面積の輪郭を選択
-            largest_contour = max(contours, key=cv2.contourArea)
-            
-            # 輪郭を4点に近似
-            epsilon = 0.02 * cv2.arcLength(largest_contour, True)
-            approx = cv2.approxPolyDP(largest_contour, epsilon, True)
-            
-            if len(approx) == 4:
-                # 4点が検出された場合
-                points = [(int(point[0][0]), int(point[0][1])) for point in approx]
-                self.image_widget.set_crop_points(points)
-                QMessageBox.information(self, "成功", "文書の輪郭を自動検出しました")
-            else:
-                # 4点でない場合は画像の四隅に設定
-                height, width = self.current_image.shape[:2]
-                margin = min(width, height) // 20
-                points = [
-                    (margin, margin),
-                    (width - margin, margin),
-                    (width - margin, height - margin),
-                    (margin, height - margin)
-                ]
-                self.image_widget.set_crop_points(points)
-                QMessageBox.information(self, "情報", "4角形の輪郭が検出できなかったため、デフォルトの範囲を設定しました")
-            
-        except Exception as e:
-            self.logger.error(f"自動検出エラー: {e}")
-            QMessageBox.critical(self, "エラー", f"自動検出でエラーが発生しました:\n{e}")
-    
-    def _enhance_image(self):
-        """画質向上を実行"""
-        try:
-            if self.current_image is None:
-                QMessageBox.warning(self, "エラー", "画像が設定されていません")
-                return
-            
-            from .image_processor import ImageProcessor
-            processor = ImageProcessor()
-            
-            # 画質向上を実行
-            enhanced_image = processor.enhance_image(self.current_image)
-            
-            if enhanced_image is not None:
-                self.current_image = enhanced_image
-                
-                # 一時ファイルに保存して再表示
-                from .utils import get_temp_dir
-                temp_dir = get_temp_dir()
-                temp_path = temp_dir / f"enhanced_{self.current_image_path.name}"
-                
-                cv2.imwrite(str(temp_path), enhanced_image)
-                self.image_widget.set_image(temp_path)
-                
-                QMessageBox.information(self, "完了", "画質向上が完了しました")
-                
-        except Exception as e:
-            self.logger.error(f"画質向上エラー: {e}")
-            QMessageBox.critical(self, "エラー", f"画質向上でエラーが発生しました:\n{e}")
-    
-    def _show_preview(self):
-        """切り抜きプレビューを表示"""
-        try:
-            if not self.current_image_path or self.current_image is None:
-                QMessageBox.warning(self, "エラー", "画像が設定されていません")
-                return
-            
-            # 制御点を取得
-            crop_points = self.image_widget.get_crop_points_in_image_coordinates()
-            if len(crop_points) != 4:
-                QMessageBox.warning(self, "エラー", "4つの制御点を設定してください")
-                return
-            
-            # プレビュー用の切り抜きを実行
-            from .image_processor import ImageProcessor
-            processor = ImageProcessor()
-            
-            working_image = self.current_image.copy()
-            
-            # 回転を適用
-            rotation_angle = self.rotation_slider.value()
-            if rotation_angle != 0:
-                working_image = processor.rotate_image(working_image, rotation_angle)
-            
-            # 4点切り抜きを実行
-            cropped_image = processor.crop_image_with_four_points(working_image, crop_points)
-            
-            if cropped_image is not None:
-                # プレビューダイアログを表示
-                self._show_preview_dialog(cropped_image)
-            else:
-                QMessageBox.warning(self, "エラー", "プレビュー生成に失敗しました")
-                
-        except Exception as e:
-            self.logger.error(f"プレビューエラー: {e}")
-            QMessageBox.critical(self, "エラー", f"プレビュー生成でエラーが発生しました:\n{e}")
-    
-    def _show_preview_dialog(self, preview_image: np.ndarray):
-        """プレビューダイアログを表示"""
-        try:
-            # OpenCV画像をQPixmapに変換
-            height, width = preview_image.shape[:2]
-            if len(preview_image.shape) == 3:
-                rgb_image = cv2.cvtColor(preview_image, cv2.COLOR_BGR2RGB)
-                q_image = QImage(rgb_image.data, width, height, width * 3, QImage.Format.Format_RGB888)
-            else:
-                q_image = QImage(preview_image.data, width, height, width, QImage.Format.Format_Grayscale8)
-            
-            pixmap = QPixmap.fromImage(q_image)
-            
-            # プレビューウィンドウサイズに調整
-            max_size = 600
-            if pixmap.width() > max_size or pixmap.height() > max_size:
-                pixmap = pixmap.scaled(
-                    max_size, max_size,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-            
-            # ダイアログ作成
-            dialog = Dialog("切り抜きプレビュー", "", self)
-            dialog.setFixedSize(pixmap.width() + 40, pixmap.height() + 100)
-            
-            # プレビューラベル
-            preview_label = QLabel()
-            preview_label.setPixmap(pixmap)
-            preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            
-            # ダイアログレイアウト
-            layout = QVBoxLayout()
-            layout.addWidget(preview_label)
-            dialog.setLayout(layout)
-            
-            # ダイアログを表示
-            dialog.exec()
-            
-        except Exception as e:
-            self.logger.error(f"プレビューダイアログエラー: {e}")
-            QMessageBox.critical(self, "エラー", f"プレビュー表示でエラーが発生しました:\n{e}")
-    
-    def _execute_crop(self):
-        """切り抜きを実行"""
-        try:
-            if not self.current_image_path or self.current_image is None:
-                QMessageBox.warning(self, "エラー", "画像が設定されていません")
-                return
-            
-            # 制御点を取得
-            crop_points = self.image_widget.get_crop_points_in_image_coordinates()
-            if len(crop_points) != 4:
-                QMessageBox.warning(self, "エラー", "4つの制御点を設定してください")
-                return
-            
-            # 画像処理を実行
-            from .image_processor import ImageProcessor
-            
-            processor = ImageProcessor()
-            
-            # 現在の画像をコピー
-            working_image = self.current_image.copy()
-            
-            # 回転を適用
-            rotation_angle = self.rotation_slider.value()
-            if rotation_angle != 0:
-                working_image = processor.rotate_image(working_image, rotation_angle)
-                self.image_rotated.emit(rotation_angle)
-            
-            # 4点切り抜きを実行
-            cropped_image = processor.crop_image_with_four_points(working_image, crop_points)
-            
-            if cropped_image is not None:
-                self.crop_completed.emit(cropped_image)
-                self.logger.info("切り抜き完了")
-                
-                # 成功メッセージ
-                QMessageBox.information(self, "完了", "切り抜きが正常に完了しました。\n画像リストに追加されました。")
-            else:
-                QMessageBox.warning(self, "エラー", "切り抜き処理に失敗しました")
-            
-        except Exception as e:
-            self.logger.error(f"切り抜き実行エラー: {e}")
-            QMessageBox.critical(self, "エラー", f"切り抜き処理でエラーが発生しました:\n{e}")
-    
-    def _update_ui_state(self):
-        """UI状態を更新"""
-        has_image = self.current_image_path is not None
-        
-        # 回転コントロール
-        self.rotation_slider.setEnabled(has_image)
-        self.rotation_spinbox.setEnabled(has_image)
-        self.rotate_left_btn.setEnabled(has_image)
-        self.rotate_right_btn.setEnabled(has_image)
-        
-        # ズームコントロール
-        self.zoom_in_btn.setEnabled(has_image)
-        self.zoom_out_btn.setEnabled(has_image)
-        self.zoom_fit_btn.setEnabled(has_image)
-        
-        # 操作ボタン
-        self.reset_points_btn.setEnabled(has_image)
-        self.auto_detect_btn.setEnabled(has_image)
-        self.enhance_btn.setEnabled(has_image)
-        
-        # 切り抜き関連ボタンは制御点の数に依存
-        # (_on_points_changed で制御)
-    
-    def get_current_image_info(self) -> Optional[dict]:
-        """
-        現在の画像情報を取得
-        
-        Returns:
-            画像情報の辞書、画像が未設定の場合はNone
-        """
-        if not self.current_image_path or self.current_image is None:
-            return None
-        
-        height, width = self.current_image.shape[:2]
-        channels = self.current_image.shape[2] if len(self.current_image.shape) == 3 else 1
-        
-        return {
-            'filename': self.current_image_path.name,
-            'filepath': str(self.current_image_path),
-            'width': width,
-            'height': height,
-            'channels': channels,
-            'rotation_angle': self.rotation_slider.value(),
-            'crop_points': self.image_widget.get_crop_points_in_image_coordinates(),
-            'zoom_factor': getattr(self.image_widget, 'zoom_factor', 1.0)
-        } as e:
             self.logger.error(f"画像設定エラー: {image_path} - {e}")
             return False
     
@@ -814,6 +489,9 @@ class CropWidget(CardWidget):
         self.current_image_path: Optional[Path] = None
         self.current_image: Optional[np.ndarray] = None
         
+        # objectNameを設定（qfluentwidgetsの要件）
+        self.setObjectName("crop-widget")
+        
         self._setup_ui()
         self._connect_signals()
     
@@ -882,11 +560,11 @@ class CropWidget(CardWidget):
         # ズーム操作ボタン
         zoom_buttons_layout = QHBoxLayout()
         self.zoom_in_btn = PushButton("拡大")
-        self.zoom_in_btn.setIcon(FluentIcon.ZOOM_IN)
+        self.zoom_in_btn.setIcon(FluentIcon.ADD)  # ZOOM_IN → ADD
         self.zoom_out_btn = PushButton("縮小")
-        self.zoom_out_btn.setIcon(FluentIcon.ZOOM_OUT)
+        self.zoom_out_btn.setIcon(FluentIcon.REMOVE)  # ZOOM_OUT → REMOVE
         self.zoom_fit_btn = PushButton("全体表示")
-        self.zoom_fit_btn.setIcon(FluentIcon.FIT_PAGE)
+        self.zoom_fit_btn.setIcon(FluentIcon.VIEW)  # FIT_PAGE → VIEW
         
         zoom_buttons_layout.addWidget(self.zoom_in_btn)
         zoom_buttons_layout.addWidget(self.zoom_out_btn)
@@ -923,14 +601,14 @@ class CropWidget(CardWidget):
         left_buttons = QHBoxLayout()
         
         self.reset_points_btn = PushButton("制御点リセット")
-        self.reset_points_btn.setIcon(FluentIcon.REFRESH)
+        self.reset_points_btn.setIcon(FluentIcon.SYNC)  # REFRESH → SYNC
         
         self.auto_detect_btn = PushButton("自動検出")
         self.auto_detect_btn.setIcon(FluentIcon.ROBOT)
         self.auto_detect_btn.setToolTip("文書の輪郭を自動検出します")
         
         self.enhance_btn = PushButton("画質向上")
-        self.enhance_btn.setIcon(FluentIcon.BRIGHTNESS)
+        self.enhance_btn.setIcon(FluentIcon.UPDATE)  # BRIGHTNESS → UPDATE
         self.enhance_btn.setToolTip("コントラスト調整とノイズ除去を行います")
         
         left_buttons.addWidget(self.reset_points_btn)
@@ -1004,4 +682,335 @@ class CropWidget(CardWidget):
             
             return success
             
-        except Exception
+        except Exception as e:
+            self.logger.error(f"画像設定エラー: {image_path} - {e}")
+            return False
+    
+    def _update_image_info(self):
+        """画像情報を更新"""
+        if not self.current_image_path or self.current_image is None:
+            self.filename_label.setText("ファイル: 未選択")
+            self.size_label.setText("サイズ: -")
+            self.format_label.setText("フォーマット: -")
+            return
+        
+        height, width = self.current_image.shape[:2]
+        channels = self.current_image.shape[2] if len(self.current_image.shape) == 3 else 1
+        
+        self.filename_label.setText(f"ファイル: {self.current_image_path.name}")
+        self.size_label.setText(f"サイズ: {width} × {height}")
+        
+        format_name = self.current_image_path.suffix.upper().lstrip('.')
+        channel_info = f"カラー" if channels == 3 else f"グレースケール" if channels == 1 else f"{channels}ch"
+        self.format_label.setText(f"フォーマット: {format_name} ({channel_info})")
+    
+    def _on_points_changed(self, points: List[Tuple[int, int]]):
+        """制御点変更時の処理"""
+        self.points_label.setText(f"制御点: {len(points)}/4")
+        
+        # ボタンの有効/無効設定
+        has_four_points = len(points) == 4
+        self.crop_btn.setEnabled(has_four_points)
+        self.preview_btn.setEnabled(has_four_points)
+        
+        # ズーム情報を更新
+        zoom_percent = int(self.image_widget.zoom_factor * 100)
+        self.zoom_label.setText(f"ズーム: {zoom_percent}%")
+    
+    def _on_rotation_changed(self, angle: int):
+        """回転角度変更時の処理"""
+        # リアルタイム回転は重いので実装しない
+        # 実際の回転は「切り抜き実行」時に行う
+        pass
+    
+    def _rotate_by_angle(self, angle: int):
+        """指定角度だけ回転"""
+        current_angle = self.rotation_slider.value()
+        new_angle = (current_angle + angle) % 360
+        if new_angle > 180:
+            new_angle -= 360
+        self.rotation_slider.setValue(new_angle)
+    
+    def _zoom_in(self):
+        """ズームイン"""
+        if hasattr(self.image_widget, 'zoom_factor'):
+            new_zoom = min(self.image_widget.zoom_factor * 1.2, self.image_widget.max_zoom)
+            self.image_widget.zoom_factor = new_zoom
+            self.image_widget.update()
+            self._update_zoom_display()
+    
+    def _zoom_out(self):
+        """ズームアウト"""
+        if hasattr(self.image_widget, 'zoom_factor'):
+            new_zoom = max(self.image_widget.zoom_factor / 1.2, self.image_widget.min_zoom)
+            self.image_widget.zoom_factor = new_zoom
+            self.image_widget.update()
+            self._update_zoom_display()
+    
+    def _zoom_fit(self):
+        """全体表示"""
+        if hasattr(self.image_widget, 'zoom_factor'):
+            self.image_widget.zoom_factor = 1.0
+            self.image_widget.pan_offset = QPoint(0, 0)
+            self.image_widget.update()
+            self._update_zoom_display()
+    
+    def _update_zoom_display(self):
+        """ズーム表示を更新"""
+        if hasattr(self.image_widget, 'zoom_factor'):
+            zoom_percent = int(self.image_widget.zoom_factor * 100)
+            self.zoom_label.setText(f"ズーム: {zoom_percent}%")
+    
+    def _auto_detect_contours(self):
+        """文書の輪郭を自動検出"""
+        try:
+            if self.current_image is None:
+                # 修正: qfluentwidgets の MessageBox を使用
+                MessageBox("エラー", "画像が設定されていません", self).exec()
+                return
+            
+            # グレースケール変換
+            gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+            
+            # ガウシアンブラー
+            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            
+            # エッジ検出
+            edges = cv2.Canny(blurred, 50, 150, apertureSize=3)
+            
+            # 輪郭検出
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if not contours:
+                MessageBox("情報", "文書の輪郭を検出できませんでした", self).exec()
+                return
+            
+            # 最大面積の輪郭を選択
+            largest_contour = max(contours, key=cv2.contourArea)
+            
+            # 輪郭を4点に近似
+            epsilon = 0.02 * cv2.arcLength(largest_contour, True)
+            approx = cv2.approxPolyDP(largest_contour, epsilon, True)
+            
+            if len(approx) == 4:
+                # 4点が検出された場合
+                points = [(int(point[0][0]), int(point[0][1])) for point in approx]
+                self.image_widget.set_crop_points(points)
+                MessageBox("成功", "文書の輪郭を自動検出しました", self).exec()
+            else:
+                # 4点でない場合は画像の四隅に設定
+                height, width = self.current_image.shape[:2]
+                margin = min(width, height) // 20
+                points = [
+                    (margin, margin),
+                    (width - margin, margin),
+                    (width - margin, height - margin),
+                    (margin, height - margin)
+                ]
+                self.image_widget.set_crop_points(points)
+                MessageBox("情報", "4角形の輪郭が検出できなかったため、デフォルトの範囲を設定しました", self).exec()
+            
+        except Exception as e:
+            self.logger.error(f"自動検出エラー: {e}")
+            MessageBox("エラー", f"自動検出でエラーが発生しました:\n{e}", self).exec()
+    
+    def _enhance_image(self):
+        """画質向上を実行"""
+        try:
+            if self.current_image is None:
+                MessageBox("エラー", "画像が設定されていません", self).exec()
+                return
+            
+            from .image_processor import ImageProcessor
+            processor = ImageProcessor()
+            
+            # 画質向上を実行
+            enhanced_image = processor.enhance_image(self.current_image)
+            
+            if enhanced_image is not None:
+                self.current_image = enhanced_image
+                
+                # 一時ファイルに保存して再表示
+                from .utils import get_temp_dir
+                temp_dir = get_temp_dir()
+                temp_path = temp_dir / f"enhanced_{self.current_image_path.name}"
+                
+                cv2.imwrite(str(temp_path), enhanced_image)
+                self.image_widget.set_image(temp_path)
+                
+                MessageBox("完了", "画質向上が完了しました", self).exec()
+                
+        except Exception as e:
+            self.logger.error(f"画質向上エラー: {e}")
+            MessageBox("エラー", f"画質向上でエラーが発生しました:\n{e}", self).exec()
+    
+    def _show_preview(self):
+        """切り抜きプレビューを表示"""
+        try:
+            if not self.current_image_path or self.current_image is None:
+                MessageBox("エラー", "画像が設定されていません", self).exec()
+                return
+            
+            # 制御点を取得
+            crop_points = self.image_widget.get_crop_points_in_image_coordinates()
+            if len(crop_points) != 4:
+                MessageBox("エラー", "4つの制御点を設定してください", self).exec()
+                return
+            
+            # プレビュー用の切り抜きを実行
+            from .image_processor import ImageProcessor
+            processor = ImageProcessor()
+            
+            working_image = self.current_image.copy()
+            
+            # 回転を適用
+            rotation_angle = self.rotation_slider.value()
+            if rotation_angle != 0:
+                working_image = processor.rotate_image(working_image, rotation_angle)
+            
+            # 4点切り抜きを実行
+            cropped_image = processor.crop_image_with_four_points(working_image, crop_points)
+            
+            if cropped_image is not None:
+                # プレビューダイアログを表示
+                self._show_preview_dialog(cropped_image)
+            else:
+                MessageBox("エラー", "プレビュー生成に失敗しました", self).exec()
+                
+        except Exception as e:
+            self.logger.error(f"プレビューエラー: {e}")
+            MessageBox("エラー", f"プレビュー生成でエラーが発生しました:\n{e}", self).exec()
+    
+    def _show_preview_dialog(self, preview_image: np.ndarray):
+        """プレビューダイアログを表示"""
+        try:
+            # OpenCV画像をQPixmapに変換
+            height, width = preview_image.shape[:2]
+            if len(preview_image.shape) == 3:
+                rgb_image = cv2.cvtColor(preview_image, cv2.COLOR_BGR2RGB)
+                q_image = QImage(rgb_image.data, width, height, width * 3, QImage.Format.Format_RGB888)
+            else:
+                q_image = QImage(preview_image.data, width, height, width, QImage.Format.Format_Grayscale8)
+            
+            pixmap = QPixmap.fromImage(q_image)
+            
+            # プレビューウィンドウサイズに調整
+            max_size = 600
+            if pixmap.width() > max_size or pixmap.height() > max_size:
+                pixmap = pixmap.scaled(
+                    max_size, max_size,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+            
+            # ダイアログ作成
+            dialog = Dialog("切り抜きプレビュー", "", self)
+            dialog.setFixedSize(pixmap.width() + 40, pixmap.height() + 100)
+            
+            # プレビューラベル
+            preview_label = QLabel()
+            preview_label.setPixmap(pixmap)
+            preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            # ダイアログレイアウト
+            layout = QVBoxLayout()
+            layout.addWidget(preview_label)
+            dialog.setLayout(layout)
+            
+            # ダイアログを表示
+            dialog.exec()
+            
+        except Exception as e:
+            self.logger.error(f"プレビューダイアログエラー: {e}")
+            MessageBox("エラー", f"プレビュー表示でエラーが発生しました:\n{e}", self).exec()
+    
+    def _execute_crop(self):
+        """切り抜きを実行"""
+        try:
+            if not self.current_image_path or self.current_image is None:
+                MessageBox("エラー", "画像が設定されていません", self).exec()
+                return
+            
+            # 制御点を取得
+            crop_points = self.image_widget.get_crop_points_in_image_coordinates()
+            if len(crop_points) != 4:
+                MessageBox("エラー", "4つの制御点を設定してください", self).exec()
+                return
+            
+            # 画像処理を実行
+            from .image_processor import ImageProcessor
+            
+            processor = ImageProcessor()
+            
+            # 現在の画像をコピー
+            working_image = self.current_image.copy()
+            
+            # 回転を適用
+            rotation_angle = self.rotation_slider.value()
+            if rotation_angle != 0:
+                working_image = processor.rotate_image(working_image, rotation_angle)
+                self.image_rotated.emit(rotation_angle)
+            
+            # 4点切り抜きを実行
+            cropped_image = processor.crop_image_with_four_points(working_image, crop_points)
+            
+            if cropped_image is not None:
+                self.crop_completed.emit(cropped_image)
+                self.logger.info("切り抜き完了")
+                
+                # 成功メッセージ
+                MessageBox("完了", "切り抜きが正常に完了しました。\n画像リストに追加されました。", self).exec()
+            else:
+                MessageBox("エラー", "切り抜き処理に失敗しました", self).exec()
+            
+        except Exception as e:
+            self.logger.error(f"切り抜き実行エラー: {e}")
+            MessageBox("エラー", f"切り抜き処理でエラーが発生しました:\n{e}", self).exec()
+    
+    def _update_ui_state(self):
+        """UI状態を更新"""
+        has_image = self.current_image_path is not None
+        
+        # 回転コントロール
+        self.rotation_slider.setEnabled(has_image)
+        self.rotation_spinbox.setEnabled(has_image)
+        self.rotate_left_btn.setEnabled(has_image)
+        self.rotate_right_btn.setEnabled(has_image)
+        
+        # ズームコントロール
+        self.zoom_in_btn.setEnabled(has_image)
+        self.zoom_out_btn.setEnabled(has_image)
+        self.zoom_fit_btn.setEnabled(has_image)
+        
+        # 操作ボタン
+        self.reset_points_btn.setEnabled(has_image)
+        self.auto_detect_btn.setEnabled(has_image)
+        self.enhance_btn.setEnabled(has_image)
+        
+        # 切り抜き関連ボタンは制御点の数に依存
+        # (_on_points_changed で制御)
+    
+    def get_current_image_info(self) -> Optional[dict]:
+        """
+        現在の画像情報を取得
+        
+        Returns:
+            画像情報の辞書、画像が未設定の場合はNone
+        """
+        if not self.current_image_path or self.current_image is None:
+            return None
+        
+        height, width = self.current_image.shape[:2]
+        channels = self.current_image.shape[2] if len(self.current_image.shape) == 3 else 1
+        
+        return {
+            'filename': self.current_image_path.name,
+            'filepath': str(self.current_image_path),
+            'width': width,
+            'height': height,
+            'channels': channels,
+            'rotation_angle': self.rotation_slider.value(),
+            'crop_points': self.image_widget.get_crop_points_in_image_coordinates(),
+            'zoom_factor': getattr(self.image_widget, 'zoom_factor', 1.0)
+        }
+        
