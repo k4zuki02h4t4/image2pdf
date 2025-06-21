@@ -1,7 +1,7 @@
 """
 メインウィンドウ
 Image2PDF アプリケーションのメインGUIウィンドウ
-修正版：addSubInterface用のobjectName設定を追加
+修正版：FluentIconの修正とHeaderCardWidgetの正しい使用方法を適用
 """
 
 import logging
@@ -298,7 +298,7 @@ class MainWindow(FluentWindow):
         """メインページ作成"""
         main_page = QWidget()
         
-        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        # objectNameを設定（qfluentwidgetsの要件）
         main_page.setObjectName("main-page")
         
         layout = QHBoxLayout(main_page)
@@ -340,7 +340,7 @@ class MainWindow(FluentWindow):
         self.remove_file_btn.setEnabled(False)
         
         self.clear_all_btn = TransparentPushButton("すべてクリア")
-        self.clear_all_btn.setIcon(FluentIcon.CLEAR_SELECTION)
+        self.clear_all_btn.setIcon(FluentIcon.CANCEL)  # CLEAR_SELECTION → CANCEL
         
         button_layout.addWidget(self.add_files_btn)
         button_layout.addWidget(self.remove_file_btn)
@@ -439,7 +439,7 @@ class MainWindow(FluentWindow):
         """切り抜きページ作成"""
         self.crop_widget = CropWidget()
         
-        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        # objectNameを設定（qfluentwidgetsの要件）
         self.crop_widget.setObjectName("crop-widget")
         
         self.addSubInterface(self.crop_widget, FluentIcon.CUT, "画像切り抜き", NavigationItemPosition.TOP)
@@ -448,7 +448,7 @@ class MainWindow(FluentWindow):
         """設定ページ作成"""
         settings_page = QWidget()
         
-        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        # objectNameを設定（qfluentwidgetsの要件）
         settings_page.setObjectName("settings-page")
         
         layout = QVBoxLayout(settings_page)
@@ -477,23 +477,14 @@ class MainWindow(FluentWindow):
     
     def _setup_navigation(self):
         """ナビゲーション設定"""
-        # アバター（オプション）
-        # self.navigationInterface.addWidget(
-        #     routeKey='avatar',
-        #     widget=AvatarWidget(),
-        #     position=NavigationItemPosition.BOTTOM
-        # )
         pass
     
     def _setup_toolbar(self):
         """ツールバー設定"""
-        # 将来的にコマンドバーを追加する場合
         pass
     
     def _setup_statusbar(self):
         """ステータスバー設定"""
-        # FluentWindowはQMainWindowを継承していないので、
-        # カスタムステータス表示を実装
         pass
     
     def _connect_signals(self):

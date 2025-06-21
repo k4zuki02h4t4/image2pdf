@@ -1,7 +1,7 @@
 """
 4点切り抜きウィジェット
 マウスで4つの点を指定して画像の切り抜き範囲を設定するウィジェット
-修正版：qfluentwidgets用のobjectName設定を追加
+修正版：存在しないFluentIconを修正
 """
 
 import logging
@@ -42,7 +42,7 @@ class InteractiveImageWidget(QWidget):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
         
-        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        # objectNameを設定（qfluentwidgetsの要件）
         self.setObjectName("interactive-image-widget")
         
         # 画像データ
@@ -489,7 +489,7 @@ class CropWidget(CardWidget):
         self.current_image_path: Optional[Path] = None
         self.current_image: Optional[np.ndarray] = None
         
-        # 【修正】objectNameを設定（qfluentwidgetsの要件）
+        # objectNameを設定（qfluentwidgetsの要件）
         self.setObjectName("crop-widget")
         
         self._setup_ui()
@@ -560,11 +560,11 @@ class CropWidget(CardWidget):
         # ズーム操作ボタン
         zoom_buttons_layout = QHBoxLayout()
         self.zoom_in_btn = PushButton("拡大")
-        self.zoom_in_btn.setIcon(FluentIcon.ZOOM_IN)
+        self.zoom_in_btn.setIcon(FluentIcon.ADD)  # ZOOM_IN → ADD
         self.zoom_out_btn = PushButton("縮小")
-        self.zoom_out_btn.setIcon(FluentIcon.ZOOM_OUT)
+        self.zoom_out_btn.setIcon(FluentIcon.REMOVE)  # ZOOM_OUT → REMOVE
         self.zoom_fit_btn = PushButton("全体表示")
-        self.zoom_fit_btn.setIcon(FluentIcon.FIT_PAGE)
+        self.zoom_fit_btn.setIcon(FluentIcon.VIEW)  # FIT_PAGE → VIEW
         
         zoom_buttons_layout.addWidget(self.zoom_in_btn)
         zoom_buttons_layout.addWidget(self.zoom_out_btn)
@@ -601,14 +601,14 @@ class CropWidget(CardWidget):
         left_buttons = QHBoxLayout()
         
         self.reset_points_btn = PushButton("制御点リセット")
-        self.reset_points_btn.setIcon(FluentIcon.REFRESH)
+        self.reset_points_btn.setIcon(FluentIcon.SYNC)  # REFRESH → SYNC
         
         self.auto_detect_btn = PushButton("自動検出")
         self.auto_detect_btn.setIcon(FluentIcon.ROBOT)
         self.auto_detect_btn.setToolTip("文書の輪郭を自動検出します")
         
         self.enhance_btn = PushButton("画質向上")
-        self.enhance_btn.setIcon(FluentIcon.BRIGHTNESS)
+        self.enhance_btn.setIcon(FluentIcon.UPDATE)  # BRIGHTNESS → UPDATE
         self.enhance_btn.setToolTip("コントラスト調整とノイズ除去を行います")
         
         left_buttons.addWidget(self.reset_points_btn)
@@ -1012,4 +1012,3 @@ class CropWidget(CardWidget):
             'crop_points': self.image_widget.get_crop_points_in_image_coordinates(),
             'zoom_factor': getattr(self.image_widget, 'zoom_factor', 1.0)
         }
-            

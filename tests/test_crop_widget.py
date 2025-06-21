@@ -1,5 +1,6 @@
 """
 切り抜きウィジェットのテスト
+修正版：存在しないFluentIconを修正
 """
 
 import pytest
@@ -149,7 +150,7 @@ class TestInteractiveImageWidget:
         widget.original_pixmap = mock_original_pixmap
         widget.display_pixmap = mock_display_pixmap
         
-        from PyQt6.QtCore import QRect
+        from PyQt6.QtCore import QRect, QPoint
         widget.image_rect = QRect(50, 50, 200, 150)
         widget.zoom_factor = 1.0
         widget.pan_offset = QPoint(0, 0)
@@ -182,7 +183,7 @@ class TestInteractiveImageWidget:
         
         # Mock paint event
         from PyQt6.QtGui import QPaintEvent
-        from PyQt6.QtCore import QRect
+        from PyQt6.QtCore import QRect, QPoint
         
         paint_event = QPaintEvent(QRect(0, 0, 400, 300))
         
