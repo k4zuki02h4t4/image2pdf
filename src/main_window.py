@@ -509,7 +509,7 @@ class MainWindow(QMainWindow):
         page_size_layout.addWidget(BodyLabel("ページサイズ:"))
         
         self.page_size_combo = ComboBox()
-        self.page_size_combo.addItems(["A4", "Letter", "Legal", "A3", "A5"])
+        self.page_size_combo.addItems(get_pdf_page_size_list())
         self.page_size_combo.setCurrentText("A4")
         
         page_size_layout.addWidget(self.page_size_combo)
@@ -738,6 +738,7 @@ class MainWindow(QMainWindow):
         """画像を追加"""
         try:
             added_count = 0
+            failed_count = 0
             
             for image_path in image_paths:
                 if is_image_file(image_path) and image_path not in self.current_images:
@@ -745,9 +746,12 @@ class MainWindow(QMainWindow):
                     thumbnail = self._generate_thumbnail(image_path)
                     
                     # リストに追加
-                    self.image_list_widget.add_image(image_path, thumbnail)
-                    self.current_images.append(image_path)
-                    added_count += 1
+                    if self.image_list_widget.add_image(image_path, thumbnail):
+                        self.current_images.append(image_path)
+                        added_count += 1
+                    else:
+                        failed_count += 1
+                        self.logger.warning(f"画像リストへの追加に失敗: {image_path}")
             
             if added_count > 0:
                 self._update_ui_state()
@@ -758,6 +762,17 @@ class MainWindow(QMainWindow):
                     isClosable=True,
                     position=InfoBarPosition.TOP_RIGHT,
                     duration=3000,
+                    parent=self
+                )
+            
+            if failed_count > 0:
+                InfoBar.warning(
+                    title="画像追加警告",
+                    content=f"{failed_count} 個の画像の追加に失敗しました",
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    duration=5000,
                     parent=self
                 )
             
