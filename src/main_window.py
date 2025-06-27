@@ -40,7 +40,7 @@ from .utils import (
     is_image_file, get_image_filter_string, 
     validate_and_prepare_output_path, check_file_overwrite,
     format_file_size, get_temp_dir,
-    get_pdf_page_size_list, get_pdf_margin_preset_list,
+    get_pdf_page_size_list, get_pdf_margin_preset_list, resize_keeping_aspect_ratio,
     PDF_PAGE_SIZES, PDF_MARGIN_PRESETS, PDF_GENERATION_MODES, PDF_DEFAULTS
 )
 from .image_processor import ImageProcessor
@@ -1188,6 +1188,7 @@ class MainWindow(QMainWindow):
     def _update_image_info(self, image_path: str):
         """画像情報を更新"""
         self._reset_thumbnail_view()
+        qwidget = QWidget()
 
         try:
             # プレビュー更新
@@ -1199,12 +1200,23 @@ class MainWindow(QMainWindow):
             
             # 画像サイズ情報
             original_pixmap = load_image_safely(image_path)
+            
+            # ウィジェットサイズに合わせて画像をスケール
+            widget_size = qwidget.size()
+            
             if original_pixmap:
                 width = original_pixmap.width()
                 height = original_pixmap.height()
+                
+                # アスペクト比を保持してリサイズ
+                new_size = resize_keeping_aspect_ratio(
+                    (original_pixmap.width(), original_pixmap.height()),
+                    (widget_size.width() - 20, widget_size.height() - 20)
+                )
+
                 # プレビューサイズに調整
                 preview_pixmap = original_pixmap.scaled(
-                    500, 500,
+                    new_size[0], new_size[1],
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )
