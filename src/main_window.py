@@ -78,10 +78,7 @@ class ImageListWidget(QListWidget):
         
         # 選択とドラッグ&ドロップの管理用
         self._drag_start_position = None
-        self._selection_in_progress = False
-        self._click_timer = QTimer()
-        self._click_timer.setSingleShot(True)
-        self._click_timer.timeout.connect(self._handle_delayed_selection)
+        self._is_dragging = False
         
     def dragEnterEvent(self, event: QDragEnterEvent):
         """ドラッグ開始イベント"""
@@ -135,73 +132,66 @@ class ImageListWidget(QListWidget):
     
     def _on_item_clicked(self, item: QListWidgetItem):
         """アイテムクリック時の処理"""
-        self._handle_item_selection(item)
+        # ドラッグ中でない場合のみ選択処理を実行
+        if not self._is_dragging:
+            self._handle_item_selection(item)
     
     def _on_selection_changed(self):
         """選択変更時の処理"""
-        if self._selection_in_progress:
-            return  # 重複実行防止
-            
-        self._handle_item_selection(self.currentItem())
+        if not self._is_dragging:
+            self._handle_item_selection(self.currentItem())
     
     def _handle_item_selection(self, item: QListWidgetItem):
         """統一された選択処理"""
-        if self._selection_in_progress:
-            return
-
         if item and item.data(Qt.ItemDataRole.UserRole):
-            self._selection_in_progress = True
-            try:
-                image_path = item.data(Qt.ItemDataRole.UserRole)
-                self.image_selected.emit(image_path)
-                self.logger.debug(f"画像選択イベント発火: {Path(image_path).name}")
-            finally:
-                # 少し遅延してフラグをリセット
-                QTimer.singleShot(100, self._reset_selection_flag)
-    
-    def _reset_selection_flag(self):
-        """選択フラグをリセット"""
-        self._selection_in_progress = False
-    
-    def _handle_delayed_selection(self):
-        """遅延選択処理（ドラッグでない場合）"""
-        current_item = self.currentItem()
-        
-        if current_item:
-            self._handle_item_selection(current_item)
+            image_path = item.data(Qt.ItemDataRole.UserRole)
+            self.image_selected.emit(image_path)
+            self.logger.debug(f"画像選択イベント発火: {Path(image_path).name}")
+
+        self.window().update_ui_state()
     
     def mousePressEvent(self, event):
-        """マウスプレスイベント（選択とドラッグの制御）"""
+        """マウスプレスイベント"""
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_start_position = event.position().toPoint()
-            
-            # アイテムを即座に選択
+            self._is_dragging = False
+
+            # アイテムをクリック時に即座に選択
             item = self.itemAt(event.position().toPoint())
             if item:
                 self.setCurrentItem(item)
-                # 少し遅延して選択イベントを発火（ドラッグでない場合）
-                self._click_timer.start(150)
+                # 即座に選択処理を実行（ドラッグ判定前）
+                self._handle_item_selection(item)
         
         super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event):
-        """マウス移動イベント（ドラッグ判定）"""
+        """マウス移動イベント"""
         if (event.buttons() & Qt.MouseButton.LeftButton and 
             self._drag_start_position is not None):
             
             # ドラッグ距離を計算
             drag_distance = (event.position().toPoint() - self._drag_start_position).manhattanLength()
             
-            if drag_distance >= QApplication.startDragDistance():
-                # ドラッグ開始 - 選択タイマーをキャンセル
-                self._click_timer.stop()
+            # ドラッグが開始された場合
+            if drag_distance >= QApplication.startDragDistance() and not self._is_dragging:
+                self._is_dragging = True
+                self.logger.debug("ドラッグ開始")
         
         super().mouseMoveEvent(event)
     
     def mouseReleaseEvent(self, event):
         """マウスリリースイベント"""
         if event.button() == Qt.MouseButton.LeftButton:
+            was_dragging = self._is_dragging
             self._drag_start_position = None
+            self._is_dragging = False
+            
+            # ドラッグが行われていない場合、確実に選択処理を実行
+            if not was_dragging:
+                item = self.itemAt(event.position().toPoint())
+                if item and item == self.currentItem():
+                    self._handle_item_selection(item)
         
         super().mouseReleaseEvent(event)
     
@@ -874,10 +864,14 @@ class MainWindow(QMainWindow):
             self.logger.error(f"サムネイル生成エラー: {image_path} - {e}")
             return None
     
+    def update_ui_state(self):
+        self._update_ui_state()
+    
     def _update_ui_state(self):
         """UI状態を更新"""
+        current_item = self.image_list_widget.currentItem()
         has_images = len(self.current_images) > 0
-        has_selection = self.image_list_widget.currentItem() is not None
+        has_selection = current_item is not None and current_item.data(Qt.ItemDataRole.UserRole) is not None
         
         # ボタン状態
         self.remove_file_btn.setEnabled(has_selection)
@@ -1197,6 +1191,7 @@ class MainWindow(QMainWindow):
             if self.crop_widget:
                 self.crop_widget.set_image(image_path)
             
+            # UI状態を強制的に更新
             self._update_ui_state()
             
         except Exception as e:
