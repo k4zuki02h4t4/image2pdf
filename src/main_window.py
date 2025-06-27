@@ -14,7 +14,7 @@ import json
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QSplitter, QListWidget, QListWidgetItem, QGroupBox,
-    QFileDialog, QProgressBar, QStatusBar, QTabWidget,
+    QFileDialog, QProgressBar, QStatusBar, QTabWidget, QSizePolicy,
     QMenuBar, QMenu, QToolBar, QScrollArea, QHeaderView, QApplication
 )
 from PyQt6.QtCore import (
@@ -461,25 +461,25 @@ class MainWindow(QMainWindow):
         # プレビューエリア
         preview_card = HeaderCardWidget()
         preview_card.setTitle("画像プレビュー")
-        
+
         self.preview_label = BodyLabel("画像を選択してください")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumHeight(400)
-        self.preview_label.setStyleSheet("border: 2px dashed #ccc; border-radius: 8px;")
-        
-        preview_card.viewLayout.addWidget(self.preview_label)
-        layout.addWidget(preview_card)
+        self.preview_label.setMinimumHeight(500)
+        layout.addWidget(self.preview_label)
         
         # 画像情報カード
         info_card = HeaderCardWidget()
         info_card.setTitle("画像情報")
+        info_card.setMaximumHeight(150)
         
         self.filename_label = BodyLabel("ファイル: 未選択")
         self.size_label = BodyLabel("サイズ: -")
         self.format_label = BodyLabel("フォーマット: -")
         
         info_card.viewLayout.addWidget(self.filename_label)
+        info_card.viewLayout.addStretch()
         info_card.viewLayout.addWidget(self.size_label)
+        info_card.viewLayout.addStretch()
         info_card.viewLayout.addWidget(self.format_label)
         
         layout.addWidget(info_card)
@@ -491,33 +491,24 @@ class MainWindow(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
+        # プレビューエリア
+        preview_card = HeaderCardWidget()
+        preview_card.setTitle("画像プレビュー")
+        
         # 切り抜きウィジェット
         self.crop_widget = InteractiveImageWidget()
-        self.crop_widget.setMinimumHeight(400)
+        self.crop_widget.setMinimumHeight(500)
         layout.addWidget(self.crop_widget)
         
         # 切り抜き操作パネル
-        crop_control_panel = self._create_crop_control_panel()
-        layout.addWidget(crop_control_panel)
-        
-        return tab
-    
-    def _create_crop_control_panel(self) -> QWidget:
-        """切り抜き操作パネル作成"""
-        panel = CardWidget()
-        layout = QVBoxLayout(panel)
-        
-        # タイトル
-        title_label = StrongBodyLabel("切り抜き操作")
-        layout.addWidget(title_label)
-        
+        info_card = HeaderCardWidget()
+        info_card.setTitle("切り抜き操作")
+        info_card.setMaximumHeight(150)
+
         # 回転コントロール
-        rotation_layout = QHBoxLayout()
-        rotation_layout.addWidget(BodyLabel("回転角度:"))
-        
         self.rotation_slider = ComboBox()
         self.rotation_slider.addItems(["0°", "90°", "180°", "270°"])
-        rotation_layout.addWidget(self.rotation_slider)
+        info_card.viewLayout.addWidget(self.rotation_slider)
         
         self.rotate_left_btn = PushButton("左90°")
         self.rotate_left_btn.setIcon(FluentIcon.LEFT_ARROW)
@@ -525,33 +516,29 @@ class MainWindow(QMainWindow):
         self.rotate_right_btn = PushButton("右90°")
         self.rotate_right_btn.setIcon(FluentIcon.RIGHT_ARROW)
         
-        rotation_layout.addWidget(self.rotate_left_btn)
-        rotation_layout.addWidget(self.rotate_right_btn)
-        rotation_layout.addStretch()
-        
-        layout.addLayout(rotation_layout)
+        info_card.viewLayout.addWidget(self.rotate_left_btn)
+        info_card.viewLayout.addWidget(self.rotate_right_btn)
         
         # 切り抜きボタン群
-        crop_button_layout = QHBoxLayout()
-        
         self.reset_points_btn = PushButton("制御点リセット")
         self.reset_points_btn.setIcon(FluentIcon.SYNC)
         
         self.auto_detect_btn = PushButton("自動検出")
         self.auto_detect_btn.setIcon(FluentIcon.ROBOT)
         
+        info_card.viewLayout.addWidget(self.reset_points_btn)
+        info_card.viewLayout.addWidget(self.auto_detect_btn)
+        
         self.crop_btn = PrimaryPushButton("切り抜き実行")
         self.crop_btn.setIcon(FluentIcon.CUT)
         self.crop_btn.setEnabled(False)
+        self.crop_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         
-        crop_button_layout.addWidget(self.reset_points_btn)
-        crop_button_layout.addWidget(self.auto_detect_btn)
-        crop_button_layout.addStretch()
-        crop_button_layout.addWidget(self.crop_btn)
+        info_card.viewLayout.addWidget(self.crop_btn)
+
+        layout.addWidget(info_card)
         
-        layout.addLayout(crop_button_layout)
-        
-        return panel
+        return tab
     
     def _create_pdf_tab(self) -> QWidget:
         """PDF設定タブ作成"""
@@ -1217,7 +1204,7 @@ class MainWindow(QMainWindow):
                 height = original_pixmap.height()
                 # プレビューサイズに調整
                 preview_pixmap = original_pixmap.scaled(
-                    400, 400,
+                    500, 500,
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )

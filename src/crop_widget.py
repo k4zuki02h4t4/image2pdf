@@ -160,7 +160,7 @@ class InteractiveImageWidget(QWidget):
         if not self.image_rect.isValid():
             return
         
-        margin = 20
+        margin = 0
         self.control_points = [
             QPoint(self.image_rect.left() + margin, self.image_rect.top() + margin),  # 左上
             QPoint(self.image_rect.right() - margin, self.image_rect.top() + margin),  # 右上
@@ -242,9 +242,6 @@ class InteractiveImageWidget(QWidget):
         """描画イベント"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # 背景を描画
-        painter.fillRect(self.rect(), self.bg_color)
         
         # 画像を描画
         if self.display_pixmap:
