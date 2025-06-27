@@ -681,10 +681,9 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         """シグナル接続"""
         # 画像リスト
-        if self.image_list_widget:
-            self.image_list_widget.images_reordered.connect(self._on_images_reordered)
-            self.image_list_widget.image_selected.connect(self._on_image_selected)
-            self.image_list_widget.image_removed.connect(self._on_image_removed)
+        self.image_list_widget.images_reordered.connect(self._on_images_reordered)
+        self.image_list_widget.image_selected.connect(self._on_image_selected)
+        self.image_list_widget.image_removed.connect(self._on_image_removed)
         
         # ボタン
         self.add_files_btn.clicked.connect(self._add_files_dialog)
@@ -879,6 +878,10 @@ class MainWindow(QMainWindow):
 
         # current_imagesを実際のUIリストと同期
         self.current_images = current_image_paths
+
+        # 表示をリセット
+        if not has_images:
+            self._reset_thumbnail_view()
 
         # ボタン状態
         self.remove_file_btn.setEnabled(has_selection)
@@ -1182,18 +1185,6 @@ class MainWindow(QMainWindow):
     def _on_image_selected(self, image_path: str):
         """画像選択時の処理"""
         try:
-            # プレビュー更新
-            thumbnail = self._generate_thumbnail(image_path)
-            if thumbnail:
-                # プレビューサイズに調整
-                preview_pixmap = thumbnail.scaled(
-                    400, 400,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                self.preview_label.setPixmap(preview_pixmap)
-                self.preview_label.setText("")
-            
             # 画像情報更新
             self._update_image_info(image_path)
             
@@ -1209,39 +1200,35 @@ class MainWindow(QMainWindow):
     
     def _update_image_info(self, image_path: str):
         """画像情報を更新"""
+        self._reset_thumbnail_view()
+
         try:
+            # プレビュー更新
+            from .utils import load_image_safely
             path = Path(image_path)
-            
             # ファイル情報
             self.filename_label.setText(f"ファイル: {path.name}")
             self.format_label.setText(f"フォーマット: {path.suffix.upper().lstrip('.')}")
             
             # 画像サイズ情報
-            pixmap = self._generate_thumbnail(image_path)
-            if pixmap:
-                # 元画像のサイズを取得（概算）
-                from .utils import load_image_safely
-                original_pixmap = load_image_safely(image_path)
-                if original_pixmap:
-                    width = original_pixmap.width()
-                    height = original_pixmap.height()
-                    self.size_label.setText(f"サイズ: {width} × {height}")
-                else:
-                    self.size_label.setText("サイズ: 不明")
-            else:
-                self.size_label.setText("サイズ: 不明")
-                
+            original_pixmap = load_image_safely(image_path)
+            if original_pixmap:
+                width = original_pixmap.width()
+                height = original_pixmap.height()
+                # プレビューサイズに調整
+                preview_pixmap = original_pixmap.scaled(
+                    400, 400,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                self.preview_label.setPixmap(preview_pixmap)
+                self.preview_label.setText("")
+                self.size_label.setText(f"サイズ: {width} × {height}")
         except Exception as e:
             self.logger.error(f"画像情報更新エラー: {e}")
     
-    def _on_image_removed(self, image_path: str):
-        """画像削除時の処理"""
-        if image_path in self.current_images:
-            self.current_images.remove(image_path)
-        
-        # UI状態を更新して同期を保つ
-        self._update_ui_state()
-
+    def _reset_thumbnail_view(self):
+        """表示をリセット"""
         # プレビューをクリア
         self.preview_label.clear()
         self.preview_label.setText("画像を選択してください")
@@ -1250,6 +1237,14 @@ class MainWindow(QMainWindow):
         self.filename_label.setText("ファイル: 未選択")
         self.size_label.setText("サイズ: -")
         self.format_label.setText("フォーマット: -")
+
+    def _on_image_removed(self, image_path: str):
+        """画像削除時の処理"""
+        if image_path in self.current_images:
+            self.current_images.remove(image_path)
+        
+        # UI状態を更新して同期を保つ
+        self._update_ui_state()
     
     # 切り抜き関連イベントハンドラー
     def _on_crop_points_changed(self, points: List):
