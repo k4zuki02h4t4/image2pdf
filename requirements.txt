@@ -2,7 +2,7 @@
 # Python 3.9+ 推奨
 
 # GUI フレームワーク
-PyQt6>=1.8.0
+PyQt6>=6.6.0
 PyQt6-Fluent-Widgets[full]>=1.8.0
 
 # 画像処理
@@ -13,6 +13,7 @@ numpy>=1.24.0
 # PDF生成
 img2pdf>=0.5.1
 reportlab>=4.4.2
+PyPDF2>=3.0.0
 
 # 開発・テスト用
 pytest>=8.0.0

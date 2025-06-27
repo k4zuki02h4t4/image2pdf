@@ -15,10 +15,10 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QSplitter, QListWidget, QListWidgetItem, QGroupBox,
     QFileDialog, QProgressBar, QStatusBar, QTabWidget,
-    QMenuBar, QMenu, QToolBar, QScrollArea, QHeaderView
+    QMenuBar, QMenu, QToolBar, QScrollArea, QHeaderView, QApplication
 )
 from PyQt6.QtCore import (
-    Qt, pyqtSignal, QThread, QTimer, QSettings, 
+    Qt, pyqtSignal, QThread, QTimer, QSettings,
     QStandardPaths, QMimeData, QUrl
 )
 from PyQt6.QtGui import (
@@ -76,6 +76,13 @@ class ImageListWidget(QListWidget):
         self.itemClicked.connect(self._on_item_clicked)
         self.itemSelectionChanged.connect(self._on_selection_changed)
         
+        # 選択とドラッグ&ドロップの管理用
+        self._drag_start_position = None
+        self._selection_in_progress = False
+        self._click_timer = QTimer()
+        self._click_timer.setSingleShot(True)
+        self._click_timer.timeout.connect(self._handle_delayed_selection)
+        
     def dragEnterEvent(self, event: QDragEnterEvent):
         """ドラッグ開始イベント"""
         if event.mimeData().hasUrls():
@@ -113,8 +120,8 @@ class ImageListWidget(QListWidget):
         else:
             # 内部アイテムの並び替え
             super().dropEvent(event)
-            # 順序変更を通知
-            self._emit_reorder_signal()
+            # 順序変更を通知（少し遅延させる）
+            QTimer.singleShot(50, self._emit_reorder_signal)
     
     def _emit_reorder_signal(self):
         """順序変更シグナルを発行"""
@@ -128,16 +135,75 @@ class ImageListWidget(QListWidget):
     
     def _on_item_clicked(self, item: QListWidgetItem):
         """アイテムクリック時の処理"""
-        if item and item.data(Qt.ItemDataRole.UserRole):
-            image_path = item.data(Qt.ItemDataRole.UserRole)
-            self.image_selected.emit(image_path)
+        self._handle_item_selection(item)
     
     def _on_selection_changed(self):
         """選択変更時の処理"""
+        if self._selection_in_progress:
+            return  # 重複実行防止
+            
+        self._handle_item_selection(self.currentItem())
+    
+    def _handle_item_selection(self, item: QListWidgetItem):
+        """統一された選択処理"""
+        if self._selection_in_progress:
+            return
+
+        if item and item.data(Qt.ItemDataRole.UserRole):
+            self._selection_in_progress = True
+            try:
+                image_path = item.data(Qt.ItemDataRole.UserRole)
+                self.image_selected.emit(image_path)
+                self.logger.debug(f"画像選択イベント発火: {Path(image_path).name}")
+            finally:
+                # 少し遅延してフラグをリセット
+                QTimer.singleShot(100, self._reset_selection_flag)
+    
+    def _reset_selection_flag(self):
+        """選択フラグをリセット"""
+        self._selection_in_progress = False
+    
+    def _handle_delayed_selection(self):
+        """遅延選択処理（ドラッグでない場合）"""
         current_item = self.currentItem()
-        if current_item and current_item.data(Qt.ItemDataRole.UserRole):
-            image_path = current_item.data(Qt.ItemDataRole.UserRole)
-            self.image_selected.emit(image_path)
+        
+        if current_item:
+            self._handle_item_selection(current_item)
+    
+    def mousePressEvent(self, event):
+        """マウスプレスイベント（選択とドラッグの制御）"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_position = event.position().toPoint()
+            
+            # アイテムを即座に選択
+            item = self.itemAt(event.position().toPoint())
+            if item:
+                self.setCurrentItem(item)
+                # 少し遅延して選択イベントを発火（ドラッグでない場合）
+                self._click_timer.start(150)
+        
+        super().mousePressEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        """マウス移動イベント（ドラッグ判定）"""
+        if (event.buttons() & Qt.MouseButton.LeftButton and 
+            self._drag_start_position is not None):
+            
+            # ドラッグ距離を計算
+            drag_distance = (event.position().toPoint() - self._drag_start_position).manhattanLength()
+            
+            if drag_distance >= QApplication.startDragDistance():
+                # ドラッグ開始 - 選択タイマーをキャンセル
+                self._click_timer.stop()
+        
+        super().mouseMoveEvent(event)
+    
+    def mouseReleaseEvent(self, event):
+        """マウスリリースイベント"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_position = None
+        
+        super().mouseReleaseEvent(event)
     
     def add_image(self, image_path: str, thumbnail: Optional[QPixmap] = None) -> bool:
         """画像をリストに追加"""
