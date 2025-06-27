@@ -224,7 +224,7 @@ class ImageListWidget(QListWidget):
             self.addItem(item)
             self.logger.info(f"画像をリストに追加: {path.name}")
             return True
-
+        
         except Exception as e:
             self.logger.error(f"画像リスト追加エラー: {image_path} - {e}")
             return False
@@ -240,6 +240,8 @@ class ImageListWidget(QListWidget):
             if image_path:
                 self.image_removed.emit(image_path)
                 self.logger.info(f"画像をリストから削除: {Path(image_path).name}")
+        
+        self.window().update_ui_state()
     
     def clear_all_images(self):
         """すべての画像をクリア"""
@@ -869,10 +871,15 @@ class MainWindow(QMainWindow):
     
     def _update_ui_state(self):
         """UI状態を更新"""
+        # UIリストの実際の状態を取得
         current_item = self.image_list_widget.currentItem()
-        has_images = len(self.current_images) > 0
+        current_image_paths = self.image_list_widget.get_all_image_paths()
+        has_images = len(current_image_paths) > 0
         has_selection = current_item is not None and current_item.data(Qt.ItemDataRole.UserRole) is not None
-        
+
+        # current_imagesを実際のUIリストと同期
+        self.current_images = current_image_paths
+
         # ボタン状態
         self.remove_file_btn.setEnabled(has_selection)
         self.clear_all_btn.setEnabled(has_images)
@@ -995,7 +1002,9 @@ class MainWindow(QMainWindow):
     def _generate_pdf_dialog(self):
         """PDF生成実行"""
         try:
-            if not self.current_images:
+            current_image_paths = self.image_list_widget.get_all_image_paths()
+
+            if not current_image_paths:
                 InfoBar.warning(
                     title="警告",
                     content="画像が選択されていません",
@@ -1072,7 +1081,7 @@ class MainWindow(QMainWindow):
             }
             
             # PDF生成スレッドを開始
-            self._start_pdf_generation(final_output_path, pdf_settings)
+            self._start_pdf_generation(current_image_paths, final_output_path, pdf_settings)
             
         except Exception as e:
             self.logger.error(f"PDF生成開始エラー: {e}")
@@ -1086,7 +1095,7 @@ class MainWindow(QMainWindow):
                 parent=self
             )
     
-    def _start_pdf_generation(self, output_path: str, settings: Dict[str, Any]):
+    def _start_pdf_generation(self, image_paths: List[str], output_path: str, settings: Dict[str, Any]):
         """PDF生成開始"""
         try:
             self.state_tooltip = StateToolTip("PDF生成中", "しばらくお待ちください...", self)
@@ -1097,7 +1106,7 @@ class MainWindow(QMainWindow):
             
             # PDF生成スレッド作成・開始
             self.pdf_thread = PDFGenerationThread(
-                self.current_images.copy(),
+                image_paths,
                 output_path,
                 settings
             )
@@ -1167,6 +1176,7 @@ class MainWindow(QMainWindow):
     def _on_images_reordered(self, image_paths: List[str]):
         """画像順序変更時の処理"""
         self.current_images = image_paths
+        self._update_ui_state()
         self.logger.info("画像順序を変更")
     
     def _on_image_selected(self, image_path: str):
@@ -1229,6 +1239,9 @@ class MainWindow(QMainWindow):
         if image_path in self.current_images:
             self.current_images.remove(image_path)
         
+        # UI状態を更新して同期を保つ
+        self._update_ui_state()
+
         # プレビューをクリア
         self.preview_label.clear()
         self.preview_label.setText("画像を選択してください")
@@ -1237,8 +1250,6 @@ class MainWindow(QMainWindow):
         self.filename_label.setText("ファイル: 未選択")
         self.size_label.setText("サイズ: -")
         self.format_label.setText("フォーマット: -")
-        
-        self._update_ui_state()
     
     # 切り抜き関連イベントハンドラー
     def _on_crop_points_changed(self, points: List):
