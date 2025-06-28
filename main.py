@@ -21,6 +21,9 @@ try:
     from qfluentwidgets import setTheme, Theme, setThemeColor
     
     # アプリケーション内部モジュール
+    from src import (
+        __appname__, __version__, __author__, __license__, __description__
+    )
     from src.main_window import MainWindow
     from src.utils import setup_logging, get_resource_path
 
@@ -42,10 +45,10 @@ class Image2PDFApplication:
         """QApplicationの設定"""
         # QApplication作成
         self.app = QApplication(sys.argv)
-        self.app.setApplicationName("Image2PDF")
-        self.app.setApplicationVersion("1.0.0")
-        self.app.setOrganizationName("K4zuki T.")
-        self.app.setApplicationDisplayName("Image2PDF - 画像からPDF変換ツール")
+        self.app.setApplicationName(f"{__appname__}")
+        self.app.setApplicationVersion(f"{__version__}")
+        self.app.setOrganizationName(f"{__author__}")
+        self.app.setApplicationDisplayName(f"{__appname__} - {__description__}")
         
         # アプリケーションアイコン設定
         icon_path = get_resource_path("resources/icons/app_icon.png")
@@ -67,7 +70,7 @@ class Image2PDFApplication:
         
     def setup_directories(self):
         """必要なディレクトリの作成"""
-        app_data_dir = Path.home() / "AppData" / "Local" / "Image2PDF"
+        app_data_dir = Path.home() / "AppData" / "Local" / f"{__appname__}"
         app_data_dir.mkdir(parents=True, exist_ok=True)
         
         # ログディレクトリ
@@ -85,9 +88,9 @@ class Image2PDFApplication:
         try:
             # ログ設定
             app_data_dir = self.setup_directories()
-            setup_logging(app_data_dir / "logs" / "image2pdf.log")
+            setup_logging(app_data_dir / "logs" / "step.log")
             
-            logging.info("Image2PDF アプリケーション開始")
+            logging.info(f"{__appname__} アプリケーション開始")
             
             # QApplication設定
             self.setup_application()
@@ -127,7 +130,7 @@ def main():
     app_instance = Image2PDFApplication()
     exit_code = app_instance.run()
     
-    logging.info(f"Image2PDF アプリケーション終了 (exit code: {exit_code})")
+    logging.info(f"{__appname__} アプリケーション終了 (exit code: {exit_code})")
     sys.exit(exit_code)
 
 

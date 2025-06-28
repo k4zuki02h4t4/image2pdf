@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 import json
+import src
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
@@ -36,6 +37,9 @@ from qfluentwidgets import (
     FluentIcon, Theme, isDarkTheme
 )
 
+from src import (
+    __appname__, __version__, __author__, __license__, __description__
+)
 from .utils import (
     is_image_file, get_image_filter_string, 
     validate_and_prepare_output_path, check_file_overwrite,
@@ -325,7 +329,7 @@ class MainWindow(QMainWindow):
         self.image_processor = ImageProcessor()
         self.pdf_generator = PDFGenerator()
         self.current_images: List[str] = []
-        self.settings = QSettings('Image2PDF', 'Image2PDF')
+        self.settings = QSettings(__appname__, __appname__)
         
         # UI コンポーネント
         self.image_list_widget: Optional[ImageListWidget] = None
@@ -359,9 +363,7 @@ class MainWindow(QMainWindow):
             Qt.WindowType.MSWindowsFixedSizeDialogHint
         )
         self.setWindowFlags(window_flags)
-        
-        # ウィンドウタイトル設定
-        self.setWindowTitle("Image2PDF - 画像からPDF変換ツール")
+
     
     def _setup_ui(self):
         """UI初期化"""
@@ -1200,7 +1202,7 @@ class MainWindow(QMainWindow):
             
             # 画像サイズ情報
             original_pixmap = load_image_safely(image_path)
-            
+
             # ウィジェットサイズに合わせて画像をスケール
             widget_size = qwidget.size()
             

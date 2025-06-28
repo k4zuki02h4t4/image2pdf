@@ -21,6 +21,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from src import (
+    __appname__, __version__, __author__, __license__, __description__
+)
 from .utils import (
     get_temp_dir, sanitize_filename, format_file_size, validate_and_prepare_output_path,
     PDF_PAGE_SIZES, PDF_DEFAULTS
@@ -199,7 +202,7 @@ class PDFGenerator(QObject):
             if subject:
                 pdf_canvas.setSubject(subject)
             
-            pdf_canvas.setCreator("Image2PDF v1.0")
+            pdf_canvas.setCreator(f"{__appname__} v{__version__}")
             
             # ページサイズとマージンを取得
             page_width, page_height = page_size

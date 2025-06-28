@@ -7,10 +7,11 @@ License: MIT
 Version: 1.0.0
 """
 
-__version__ = "1.0.0"
+__appname__ = "Image2PDF"
+__version__ = "1.0.1"
 __author__ = "K4zuki T."
 __license__ = "MIT"
-__description__ = "Windows 11対応のモダンな画像からPDF変換ツール"
+__description__ = "複数の画像を PDF に変換するツール"
 
 # メインクラスのインポート
 from .main_window import MainWindow
@@ -52,6 +53,7 @@ __all__ = [
     'setup_logging',
     
     # メタデータ
+    '__appname__',
     '__version__',
     '__author__',
     '__license__',
@@ -74,6 +76,7 @@ def get_version_info():
         dict: バージョン情報の辞書
     """
     return {
+        'appname': __appname__,
         'version': __version__,
         'author': __author__,
         'license': __license__,
@@ -83,10 +86,10 @@ def get_version_info():
 def print_version_info():
     """バージョン情報を表示"""
     info = get_version_info()
-    print(f"Image2PDF {info['version']}")
+    print(f"{info['appname']} {info['version']}")
     print(f"Author: {info['author']}")
     print(f"License: {info['license']}")
     print(f"Description: {info['description']}")
 
 # パッケージレベルの初期化
-logger.info(f"Image2PDF package initialized (version {__version__})")
+logger.info(f"{__appname__} package initialized (version {__version__})")
