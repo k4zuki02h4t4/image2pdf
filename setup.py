@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Image2PDF アプリケーション インストール設定
-Windows 11 対応の画像からPDF変換ツール
+複数の画像から PDF を生成するツール
 """
 
 from setuptools import setup, find_packages
@@ -27,12 +27,12 @@ def get_requirements():
 setup(
     name="image2pdf",
     version="1.0.0",
-    description="Windows 11対応のモダンな画像からPDF変換ツール",
+    description="複数の画像から PDF を生成するツール",
     long_description=README,
     long_description_content_type="text/markdown",
     author="K4zuki T.",
     author_email="",
-    url="https://github.com/k4zuki/image2pdf",
+    url="https://github.com/k4zuki02h4t4/image2pdf",
     license="MIT",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -65,9 +65,9 @@ setup(
         ],
     },
     project_urls={
-        "Bug Reports": "https://github.com/k4zuki/image2pdf/issues",
-        "Source": "https://github.com/k4zuki/image2pdf",
-        "Documentation": "https://github.com/k4zuki/image2pdf/wiki",
+        "Bug Reports": "https://github.com/k4zuki02h4t4/image2pdf/issues",
+        "Source": "https://github.com/k4zuki02h4t4/image2pdf",
+        "Documentation": "https://github.com/k4zuki02h4t4/image2pdf/wiki",
     },
     zip_safe=False,
 )

@@ -1,6 +1,6 @@
 """
 Image2PDF Package
-Windows 11対応の画像からPDF変換ツール
+複数の画像から PDF を生成するツール
 
 Author: K4zuki T.
 License: MIT
@@ -11,7 +11,7 @@ __appname__ = "Image2PDF"
 __version__ = "1.0.1"
 __author__ = "K4zuki T."
 __license__ = "MIT"
-__description__ = "複数の画像を PDF に変換するツール"
+__description__ = "複数の画像から PDF を生成するツール"
 
 # メインクラスのインポート
 from .main_window import MainWindow

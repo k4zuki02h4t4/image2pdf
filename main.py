@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Image2PDF - Windows 11対応画像からPDF変換ツール
+Image2PDF - 複数の画像から PDF を生成するツール
 モダンなUIデザインのデスクトップアプリケーション
 ナビゲーション削除版：単一画面で全機能を統合
 
