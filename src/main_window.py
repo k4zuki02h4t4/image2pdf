@@ -363,7 +363,9 @@ class MainWindow(QMainWindow):
             Qt.WindowType.MSWindowsFixedSizeDialogHint
         )
         self.setWindowFlags(window_flags)
-
+        
+        # スタイルの設定
+        self.setStyleSheet('font-family: Sans Serif')
     
     def _setup_ui(self):
         """UI初期化"""
@@ -443,7 +445,7 @@ class MainWindow(QMainWindow):
         
         # PDF設定タブ
         pdf_tab = self._create_pdf_tab()
-        tab_widget.addTab(pdf_tab, "PDF設定")
+        tab_widget.addTab(pdf_tab, "PDF生成設定")
         
         layout.addWidget(tab_widget)
         
